@@ -72,7 +72,7 @@ def main():
     config = Config(nameTest="test",
            model="normal",
            dataset="purchase-10",
-           lam=10,
+           lam=0.1,
            gamma=0.5,
            max_depth=4,
            max_tree=10,

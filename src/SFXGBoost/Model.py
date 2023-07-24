@@ -274,7 +274,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     b.display(treeID)
                     update_pred = tree.predict(testDataBase)
                     y_pred[:, c] += update_pred
-
+            print(y_pred)
             return y_pred
 
              
