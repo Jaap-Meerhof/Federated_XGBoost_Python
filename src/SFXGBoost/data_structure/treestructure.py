@@ -2,15 +2,19 @@
 import numpy as np
 
 class SplittingInfo:
-    def __init__(self) -> None:
-        self.bestSplitScore = -np.Infinity
+    def __init__(self, bestSplitScore = -np.Infinity, featureName=None, splitValue=0.0, weight = None, nodeScore = None) -> None:
+        self.bestSplitScore = bestSplitScore
         self.bestSplitParty = None
         self.selectedFeatureID = 0
         self.selectedCandidate = 0
-        self.isValid = False
         self.instances = []
-        self.featureName = None
-        self.splitValue = 0.0
+        self.featureName = featureName
+        self.splitValue = splitValue
+        
+        self.isValid = bestSplitScore > 0
+
+        self.weight = weight
+        self.nodeScore = nodeScore
 
     def delSplittinVector(self): # performance attempt
         self.bestSplittingVector = None
@@ -68,14 +72,17 @@ class TreeNode:
 
 
 class FLTreeNode(TreeNode):
-    def __init__(self, FID = 0, weight=0, nUsers = 0, leftBranch=None, rightBranch=None, ownerID = -1):
+    def __init__(self, FID = 0, weight=0, leftBranch=None, rightBranch=None, ownerID = -1):
         super().__init__(weight, leftBranch, rightBranch)
         self.FID = FID
         self.owner = ownerID
         self.splittingInfo = SplittingInfo()
-        self.nUsers = nUsers
         self.score = None
-        self.instances = np.full((nUsers,), True)
+
+    def initTrees(self, nUsers): # not used
+        self.nUsers = nUsers
+        self.instances = np.full( (nUsers,), True)
+
 
     def get_private_info(self):
         return "\nOwner ID:{}".format(self.owner)
@@ -108,15 +115,9 @@ class FLTreeNode(TreeNode):
 
     @staticmethod
     def compute_leaf_param(gVec, hVec, lamb):
-        def inhomogenioussum(mylist):
-            sum = 0
-            for k in range(len(mylist)):
-                for v in range(len(mylist[k])):
-                    sum += mylist[k][v]
-            return sum
-    
-        gI = inhomogenioussum(gVec) # TODO other sum
-        hI = inhomogenioussum(hVec)
+
+        gI = np.sum(gVec) # TODO other sum
+        hI = np.sum(hVec)
         # print(f"gI = {gI}")
         # print(f"hI = {hI}")
 

@@ -36,22 +36,24 @@ def test_global(config:Config, logger:Logger, model: SFXGBoostClassifierBase, ge
     # split up the database between the users
     if rank == PARTY_ID.SERVER:
         pass
+        model.setData(fName=fName)
     else:
+        original = DataBase.data_matrix_to_database(X_train_my, fName)
         quantile = quantile.splitupHorizontal(start_end[rank-1][0], start_end[rank-1][1])
-        model.setData(quantile, fName, X_train_my, y_train_my)
+        model.setData(quantile, fName, original, y_train_my)
     
     model.boost(initprobability)
 
     if rank == PARTY_ID.SERVER:
-        y_pred = model.predict(X_test, fName, initprobability)
+        y_pred = model.predict(X_test, fName)
         
-        import xgboost as xgb
-        xgboostmodel = xgb.XGBClassifier(max_depth=3, objective="multi:softmax",
-                            learning_rate=0.3, n_estimators=10, gamma=0.5, reg_alpha=1, reg_lambda=10)
-        xgboostmodel.fit(X_train, np.argmax(y_train, axis=1))
-        from sklearn.metrics import accuracy_score
-        y_pred_xgb = xgboostmodel.predict(X_test)
-        print(f"Accuracy xgboost normal = {accuracy_score(y_test, y_pred_xgb)}")
+        # import xgboost as xgb
+        # xgboostmodel = xgb.XGBClassifier(max_depth=3, objective="multi:softmax",
+        #                     learning_rate=0.3, n_estimators=10, gamma=0.5, reg_alpha=1, reg_lambda=10)
+        # xgboostmodel.fit(X_train, np.argmax(y_train, axis=1))
+        # from sklearn.metrics import accuracy_score
+        # y_pred_xgb = xgboostmodel.predict(X_test)
+        # print(f"Accuracy xgboost normal = {accuracy_score(y_test, y_pred_xgb)}")
         print(y_pred)
     else:
         y_pred = [] # basically a none
@@ -59,6 +61,7 @@ def test_global(config:Config, logger:Logger, model: SFXGBoostClassifierBase, ge
     y_pred_org = y_pred.copy()
     X = X_train
     y = y_train 
+    
     return X, y, y_pred_org, y_test, model, X_shadow, y_shadow
 
 dataset_list = ['purchase-10', 'purchase-20', 'purchase-50', 'purchase-100', 'texas', 'MNIST', 'synthetic', 'Census', 'DNA']
@@ -69,10 +72,10 @@ def main():
     config = Config(nameTest="test",
            model="normal",
            dataset="purchase-10",
-           lam=0.1,
-           gamma=1,
+           lam=10,
+           gamma=0.5,
            max_depth=4,
-           max_tree=5,
+           max_tree=10,
            nClasses=10,
            nFeatures=600)
     logger = MyLogger(config).logger
@@ -80,6 +83,12 @@ def main():
     if config.model == "normal":
         model = SFXGBoost(config, logger)
         
-    test_global(config, logger, model, getDataBase(config.dataset, POSSIBLE_PATHS))
+    X, y, y_pred_org, y_test, model, X_shadow, y_shadow = test_global(config, logger, model, getDataBase(config.dataset, POSSIBLE_PATHS))
+
+    if rank == 0:
+        from sklearn.metrics import accuracy_score
+        print(f"Accuracy xgboost normal = {accuracy_score(np.argmax(y, axis=1), y_pred_org)}")
+
+
 
 main()

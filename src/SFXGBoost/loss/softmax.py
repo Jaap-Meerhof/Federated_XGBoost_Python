@@ -4,7 +4,9 @@ def diff(actual, predicted):
     return 
 
 def getGradientHessians(y, y_pred):
-    if case_weight is None: case_weight = np.ones(y.shape)
+    # if case_weight is None: case_weight = np.ones(y.shape)
+
+
     grad = np.zeros((y_pred.shape), dtype=float) # for multi-class
     hess = np.zeros((y_pred.shape), dtype=float) # for multi-class
     for rowid in range(y_pred.shape[0]):
@@ -18,7 +20,7 @@ def getGradientHessians(y, y_pred):
             h = max((2.0 * p * (1.0 - p)).item(), 1e-6)
             grad[rowid][c] = g
             hess[rowid][c] = h
-    return grad, hess
+    return grad, hess #nUsers, nClasses
 
 def gradient(actual, predicted): # TODO make this not incredibly redundant
     actualtmp = np.argmax(actual, axis=1)
