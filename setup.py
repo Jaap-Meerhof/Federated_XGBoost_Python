@@ -34,7 +34,7 @@ setuptools.setup(
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
     ],
-    python_requires='==3.8.17',
+    python_requires='>=3.8.16', #ONLY TESTED ON 3.8.16 and 3.8.17
     # install_requires=['Pillow'],
     extras_require={
         'dev': ['check-manifest'],

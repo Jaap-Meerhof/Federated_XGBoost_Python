@@ -1,5 +1,4 @@
 
-from config import config, logger
 import numpy as np
 
 class SplittingInfo:
@@ -16,7 +15,7 @@ class SplittingInfo:
     def delSplittinVector(self): # performance attempt
         self.bestSplittingVector = None
 
-    def log(self):
+    def log(self, logger):
         logger.debug("Best Splitting Score: L = %.2f, Selected Party %s",\
                 self.bestSplitScore, str(self.bestSplitParty))
         logger.debug("%s", self.get_str_split_info())
@@ -48,7 +47,7 @@ class TreeNode:
         self.rightBranch = rightBranch
         
 
-    def logNode(self):
+    def logNode(self, logger):
         logger.info("Child Node Addresses: L %d| R %d", id(self.leftBranch), id(self.rightBranch))
 
     def get_string_recursive(self):
@@ -76,6 +75,7 @@ class FLTreeNode(TreeNode):
         self.splittingInfo = SplittingInfo()
         self.nUsers = nUsers
         self.score = None
+        self.instances = np.full((nUsers,), True)
 
     def get_private_info(self):
         return "\nOwner ID:{}".format(self.owner)
@@ -96,10 +96,10 @@ class FLTreeNode(TreeNode):
         return None
 
   
-    def compute_score(self):
+    def compute_score(self, gamma):
         score = 0
         if self.is_leaf():
-            return self.score + config.gamma
+            return self.score + gamma
         else:
             for child in [self.leftBranch, self.rightBranch]:
                 if child is not None:

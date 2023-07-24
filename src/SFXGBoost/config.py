@@ -13,16 +13,16 @@ np.set_printoptions(linewidth=np.inf)
 np.set_printoptions(precision=4, suppress=True)
 
 class Config:
-    def __init__(self, nameTest:str, model:str, lam:float, gamma:float, max_depth:int, max_tree:int, nClasses:int):
+    def __init__(self, nameTest:str, model:str, dataset:str, lam:float, gamma:float, max_depth:int, max_tree:int, nClasses:int, nFeatures):
         self.nameTest = nameTest
         self.model = model
+        self.dataset = dataset
         self.lam = lam
         self.gamma = gamma
         self.max_depth = max_depth
         self.max_tree = max_tree
         self.nClasses = nClasses
-
-config: Config = None
+        self.nFeatures = nFeatures
 
 class MyLogger:
     def __init__(self, config:Config):
@@ -32,7 +32,7 @@ class MyLogger:
 
         curTime = round(time.time())
 
-        logName = 'Log/{}/{}/{}_{}_{}_{}_{}/Rank_{}.log'.format(config.nameTest, str(day), str(curTime), str(), str(Config.model), str(rank))
+        logName = 'Log/{}/{}/{}_{}/Rank_{}.log'.format(config.nameTest, str(day), str(curTime), str(config.model), str(rank))
         os.makedirs(os.path.dirname(logName), exist_ok=True)
 
         file_handler = logging.FileHandler(logName, mode='w')
@@ -42,5 +42,3 @@ class MyLogger:
         logger.addHandler(file_handler)
         logger.setLevel(logging.WARNING)
         self.logger = logger
-
-logger:logging.Logger = None

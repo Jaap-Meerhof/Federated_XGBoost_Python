@@ -1,8 +1,8 @@
 
 from distutils.log import Log
 import numpy as np
-from common.BasicTypes import Direction
-from config import logger, rank
+from SFXGBoost.common.BasicTypes import Direction
+from SFXGBoost.config import rank
 
 L = lambda G,H, GL, GR, HL, HR, lamb, gamma: 1/2 * ((GL*GL / (HL + lamb)) + (GR*GR / (HR + lamb)) - (G*G / (H + lamb))) - gamma
 
@@ -110,7 +110,7 @@ class SplittingInfo:
     def delSplittinVector(self): # performance attempt
         self.bestSplittingVector = None
 
-    def log(self):
+    def log(self, logger):
         logger.debug("Best Splitting Score: L = %.2f, Selected Party %s",\
                 self.bestSplitScore, str(self.bestSplitParty))
         logger.debug("%s", self.get_str_split_info())
@@ -147,7 +147,7 @@ class FedDirRequestInfo(FedQueryInfo):
         super().__init__(userIdList)
         self.nodeFedId = None
 
-    def log(self):
+    def log(self, logger):
         logger.debug("Inference Request| NodeFedID %d| nUsers: %d| Users: %s|", self.nodeFedId, self.nUsers, self.userIdList)
 
 

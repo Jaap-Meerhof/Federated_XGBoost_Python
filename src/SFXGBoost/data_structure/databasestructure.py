@@ -2,9 +2,9 @@ import numpy as np
 import pandas as pd
 from scipy import rand
 
-from common.BasicTypes import Direction
-from common.XGBoostcommon import SplittingInfo
-from config import rank, logger
+from SFXGBoost.common.BasicTypes import Direction
+from SFXGBoost.common.XGBoostcommon import SplittingInfo
+from SFXGBoost.config import rank
 
 class QuantileParam:
     epsilon = 0.005
@@ -119,7 +119,7 @@ class DataBase:
         """
         del self.featureDict[key]
 
-    def log(self):
+    def log(self, logger):
         fNameList = ''
         for fName, fData in self.featureDict.items():
             fNameList += fName + '; '
@@ -223,7 +223,7 @@ class QuantiledDataBase(DataBase):
                     retMergedSM = np.concatenate((retMergedSM,fSM))  
         return retMergedSM
 
-    def find_fId_and_scId(self, bestSplitVector):
+    def find_fId_and_scId(self, bestSplitVector, logger):
         """
         Find the optimal splitting feature and threshold corressponding to the optimal splitting vector
         """
