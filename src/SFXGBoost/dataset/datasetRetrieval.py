@@ -69,6 +69,7 @@ def getTexas(paths):
         shadow_size = 30_000    
 
         X = check_mul_paths('texas/' + 'texas_100_v2_features.p', paths)
+        X = np.array(X)
         y = check_mul_paths('texas/' + 'texas_100_v2_labels.p', paths)
         # fName = check_mul_paths('texas/' + 'texas_100_v2_feature_desc.p', paths)
         fName = ['THCIC_ID', 'SEX_CODE', 'TYPE_OF_ADMISSION', 'SOURCE_OF_ADMISSION', \
