@@ -165,7 +165,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
         # print(value)
         # print(maxScore)
         
-        weight, nodeScore = FLTreeNode.compute_leaf_param(gVec=gradient[feature], hVec=hessian[feature], lamb=self.config.lam)
+        weight, nodeScore = FLTreeNode.compute_leaf_param(gVec=gradient[feature], hVec=hessian[feature], lamb=self.config.lam) #TODO not done correctly should be done seperately!
 
 
         return SplittingInfo(bestSplitScore=maxScore, featureName=featureName, splitValue=value, weight=weight, nodeScore=nodeScore)
@@ -176,7 +176,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
             for n, node in enumerate(last_level_nodes[c]):
                 splitInfo = splits[c][n]
                 if splitInfo.isValid:
-                    if depth+1 < self.config.max_depth:
+                    if depth < self.config.max_depth:
                         node.splittingInfo = splitInfo
                         node.leftBranch = FLTreeNode()
                         node.rightBranch = FLTreeNode()

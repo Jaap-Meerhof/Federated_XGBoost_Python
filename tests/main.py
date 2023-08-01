@@ -54,7 +54,7 @@ def test_global(config:Config, logger:Logger, model: SFXGBoostClassifierBase, ge
         # from sklearn.metrics import accuracy_score
         # y_pred_xgb = xgboostmodel.predict(X_test)
         # print(f"Accuracy xgboost normal = {accuracy_score(y_test, y_pred_xgb)}")
-        print(y_pred)
+        print(f"y_pred: {y_pred}")
     else:
         y_pred = [] # basically a none
 
@@ -72,11 +72,11 @@ def main():
     config = Config(nameTest="test",
            model="normal",
            dataset="texas",
-           lam=10,
+           lam=1,
            gamma=0.5,
            max_depth=4,
            max_tree=10,
-           nClasses=10,
+           nClasses=100,
            nFeatures=11)
     logger = MyLogger(config).logger
     from SFXGBoost.dataset.datasetRetrieval import getDataBase
@@ -87,7 +87,7 @@ def main():
 
     if rank == 0:
         from sklearn.metrics import accuracy_score
-        print(f"Accuracy xgboost normal = {accuracy_score(np.argmax(y, axis=1), y_pred_org)}")
+        print(f"Accuracy federboost = {accuracy_score(np.argmax(y, axis=1), y_pred_org)}")
 
 
 
