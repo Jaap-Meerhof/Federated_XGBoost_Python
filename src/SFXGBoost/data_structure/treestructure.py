@@ -115,7 +115,7 @@ class FLTreeNode(TreeNode):
 
     @staticmethod
     def compute_leaf_param(gVec, hVec, lamb):
-
+        # sum over ALL features's gradients and hessians
         gI = np.sum(gVec) # TODO other sum
         hI = np.sum(hVec)
         # print(f"gI = {gI}")

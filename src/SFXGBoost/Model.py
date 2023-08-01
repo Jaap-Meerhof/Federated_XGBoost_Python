@@ -82,7 +82,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     print("got gradients")
                     for c in range(self.config.nClasses):
                         for i, n in enumerate(nodes[c]):
-                            split_cn = self.find_split(splits, G[c][i], H[c][i])
+                            split_cn = self.find_split(splits, G[c][i], H[c][i], l+1 == self.config.max_depth)
                             splittingInfos[c].append(split_cn)
                     
                     for Pi in range(1, comm.Get_size()):
@@ -132,7 +132,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                 update_pred = np.array([tree.predict(orgData) for tree in self.trees[:, t]]).T
                 y_pred += update_pred
      
-    def find_split(self, splits, gradient, hessian):
+    def find_split(self, splits, gradient, hessian, is_last_level):
         """_summary_
 
         Args:
@@ -143,30 +143,30 @@ class SFXGBoost(SFXGBoostClassifierBase):
         maxScore = -np.inf
         feature = np.inf
         value = np.inf
-        featureName = None
+        featureName = "no split"
         
-        for k in range(self.config.nFeatures):
-            G = sum(gradient[k])
-            H = sum(hessian[k])
-            Gl, Hl = 0, 0
-            for v in range(np.shape(splits[k])[0]):
-                Gl += gradient[k][v]
-                Hl += hessian[k][v]
-                Gr = G-Gl
-                Hr = H-Hl
-                score = L(G, H, Gl, Gr, Hl, Hr, self.config.lam, self.config.gamma)
-                if score > maxScore:
-                    value = splits[k][v]
-                    feature = k
-                    featureName = self.fName[k]
-                    maxScore = score
+        if not is_last_level:
+            for k in range(self.config.nFeatures):
+                G = sum(gradient[k])
+                H = sum(hessian[k])
+                Gl, Hl = 0, 0
+                for v in range(np.shape(splits[k])[0]):
+                    Gl += gradient[k][v]
+                    Hl += hessian[k][v]
+                    Gr = G-Gl
+                    Hr = H-Hl
+                    score = L(G, H, Gl, Gr, Hl, Hr, self.config.lam, self.config.gamma)
+                    if score > maxScore:
+                        value = splits[k][v]
+                        feature = k
+                        featureName = self.fName[k]
+                        maxScore = score
 
         # print(featureName)
         # print(value)
         # print(maxScore)
         
-        weight, nodeScore = FLTreeNode.compute_leaf_param(gVec=gradient[feature], hVec=hessian[feature], lamb=self.config.lam) #TODO not done correctly should be done seperately!
-
+        weight, nodeScore = FLTreeNode.compute_leaf_param(gVec=gradient, hVec=hessian, lamb=self.config.lam) #TODO not done correctly should be done seperately!
 
         return SplittingInfo(bestSplitScore=maxScore, featureName=featureName, splitValue=value, weight=weight, nodeScore=nodeScore)
 
@@ -176,7 +176,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
             for n, node in enumerate(last_level_nodes[c]):
                 splitInfo = splits[c][n]
                 if splitInfo.isValid:
-                    if depth < self.config.max_depth:
+                    if depth+1 < self.config.max_depth: 
                         node.splittingInfo = splitInfo
                         node.leftBranch = FLTreeNode()
                         node.rightBranch = FLTreeNode()
