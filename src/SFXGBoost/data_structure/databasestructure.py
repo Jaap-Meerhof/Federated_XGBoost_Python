@@ -156,6 +156,8 @@ class DataBase:
         # print(len(featureName))
         # print(nFeatures)
         # print(len(featureName) == nFeatures)
+        print(len(featureName))
+        print(nFeatures)
         assert (len(featureName) == nFeatures) # The total amount of columns must match the assigned name 
         
         dataBase = DataBase()

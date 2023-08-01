@@ -70,8 +70,10 @@ def getTexas(paths):
 
         X = check_mul_paths('texas/' + 'texas_100_v2_features.p', paths)
         y = check_mul_paths('texas/' + 'texas_100_v2_labels.p', paths)
-        fName = check_mul_paths('texas/' + 'texas_100_v2_feature_desc.p', paths)
-
+        # fName = check_mul_paths('texas/' + 'texas_100_v2_feature_desc.p', paths)
+        fName = ['THCIC_ID', 'SEX_CODE', 'TYPE_OF_ADMISSION', 'SOURCE_OF_ADMISSION', \
+             'LENGTH_OF_STAY', 'PAT_AGE', 'PAT_STATUS', 'RACE', 'ETHNICITY', \
+                'TOTAL_CHARGES', 'ADMITTING_DIAGNOSIS']
         total_size = shadow_size + test_size + train_size
         if not total_size < len(X) : raise Exception(f"your don't have enough data for these settings. your original X is of size {len(X)} ")
         
@@ -102,7 +104,7 @@ def getDNA(paths):
 def getDataBase(dataBaseName, paths):
     """After setting the database in the config, this will retrieve the database
     """
-    get_databasefunc = {'purchase-10': getPurchase(10, paths), 'purchase-20':getPurchase(20, paths), 
+    get_databasefunc = {'purchase-10getTexas': getPurchase(10, paths), 'purchase-20':getPurchase(20, paths), 
                     'purchase-50':getPurchase(50, paths), 'purchase-100':getPurchase(100, paths), 
                     'texas':getTexas(paths), 'MNIST':getMNIST(paths), 'synthetic':getSynthetic(paths), 
                     'Census':getCensus(paths), 'DNA':getDNA(paths)
