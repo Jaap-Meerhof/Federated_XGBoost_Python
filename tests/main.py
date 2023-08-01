@@ -77,7 +77,7 @@ def main():
            max_depth=4,
            max_tree=10,
            nClasses=10,
-           nFeatures=600)
+           nFeatures=11)
     logger = MyLogger(config).logger
     from SFXGBoost.dataset.datasetRetrieval import getDataBase
     if config.model == "normal":
