@@ -18,7 +18,15 @@ def log_distribution(logger, X_train, y_train, y_test):
 def test_global(config:Config, logger:Logger, model: SFXGBoostClassifierBase, getDatabaseFunc):
     X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDatabaseFunc()
     log_distribution(logger, X_train, y_train, y_test)
-    
+    if rank == PARTY_ID.SERVER:
+        import xgboost as xgb
+        xgboostmodel = xgb.XGBClassifier(max_depth=6, objective="multi:softmax", tree_method="approx",
+                            learning_rate=0.3, n_estimators=20, gamma=0, reg_alpha=0, reg_lambda=1)
+        xgboostmodel.fit(X_train, np.argmax(y_train, axis=1))
+        from sklearn.metrics import accuracy_score
+        y_pred_xgb = xgboostmodel.predict(X_test)
+        print(f"Accuracy xgboost normal = {accuracy_score(np.argmax(y_test, axis=1), y_pred_xgb)}")
+
     quantile = QuantiledDataBase(DataBase.data_matrix_to_database(X_train, fName) )
 
     initprobability = (sum(y_train))/len(y_train)
@@ -46,15 +54,6 @@ def test_global(config:Config, logger:Logger, model: SFXGBoostClassifierBase, ge
 
     if rank == PARTY_ID.SERVER:
         y_pred = model.predict(X_test, fName)
-        
-        # import xgboost as xgb
-        # xgboostmodel = xgb.XGBClassifier(max_depth=3, objective="multi:softmax",
-        #                     learning_rate=0.3, n_estimators=10, gamma=0.5, reg_alpha=1, reg_lambda=10)
-        # xgboostmodel.fit(X_train, np.argmax(y_train, axis=1))
-        # from sklearn.metrics import accuracy_score
-        # y_pred_xgb = xgboostmodel.predict(X_test)
-        # print(f"Accuracy xgboost normal = {accuracy_score(y_test, y_pred_xgb)}")
-        print(f"y_pred: {y_pred}")
     else:
         y_pred = [] # basically a none
 
@@ -87,8 +86,9 @@ def main():
 
     if rank == 0:
         from sklearn.metrics import accuracy_score
-        print(f"Accuracy federboost = {accuracy_score(np.argmax(y, axis=1), y_pred_org)}")
-
-
+        print(f"y_test = {np.argmax(y_test, axis=1)}")
+        print(f"y_pred_org = {y_pred_org}")
+        
+        print(f"Accuracy federboost = {accuracy_score(np.argmax(y_test, axis=1), y_pred_org)}")
 
 main()

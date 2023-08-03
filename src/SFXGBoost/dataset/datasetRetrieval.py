@@ -63,8 +63,8 @@ def getPurchase(num, paths):
 def getTexas(paths):
     def returnfunc():
         # logger.warning("getting Texas database!")
-        train_size = 10_000
-        test_size = 10_000
+        train_size = 30_000
+        test_size = 20_000
         random_state = 69
         shadow_size = 30_000    
 
@@ -88,7 +88,10 @@ def getTexas(paths):
     
         return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
     return returnfunc
-
+POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
+                      "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
+                      "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
+getTexas(POSSIBLE_PATHS)
 def getMNIST(paths):
     return
 

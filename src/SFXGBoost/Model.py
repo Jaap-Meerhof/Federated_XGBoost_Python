@@ -166,7 +166,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
         # print(value)
         # print(maxScore)
         
-        weight, nodeScore = FLTreeNode.compute_leaf_param(gVec=gradient, hVec=hessian, lamb=self.config.lam) #TODO not done correctly should be done seperately!
+        weight, nodeScore = FLTreeNode.compute_leaf_param(gVec=gradient[0], hVec=hessian[0], lamb=self.config.lam) #TODO not done correctly should be done seperately!
 
         return SplittingInfo(bestSplitScore=maxScore, featureName=featureName, splitValue=value, weight=weight, nodeScore=nodeScore)
 
@@ -175,24 +175,18 @@ class SFXGBoost(SFXGBoostClassifierBase):
         for c in range(self.config.nClasses):
             for n, node in enumerate(last_level_nodes[c]):
                 splitInfo = splits[c][n]
-                if splitInfo.isValid:
-                    if depth+1 < self.config.max_depth: 
-                        node.splittingInfo = splitInfo
-                        node.leftBranch = FLTreeNode()
-                        node.rightBranch = FLTreeNode()
-                        fName = splitInfo.featureName
-                        sValue = splitInfo.splitValue
-                        # print(self.original_data.featureDict.keys())
-                        if rank != PARTY_ID.SERVER:
-                            node.leftBranch.instances = [self.original_data.featureDict[fName][index] <= sValue for index in range(self.nUsers)]
-                            node.rightBranch.instances = [self.original_data.featureDict[fName][index] > sValue for index in range(self.nUsers)]
-                        new_nodes[c].append(node.leftBranch)
-                        new_nodes[c].append(node.rightBranch)
-                    else: 
-                        node.weight = splitInfo.weight
-                        node.score = splitInfo.nodeScore
-                        node.leftBranch = None
-                        node.rightBranch = None
+                if splitInfo.isValid and depth+1 < self.config.max_depth:
+                    node.splittingInfo = splitInfo
+                    node.leftBranch = FLTreeNode()
+                    node.rightBranch = FLTreeNode()
+                    fName = splitInfo.featureName
+                    sValue = splitInfo.splitValue
+                    # print(self.original_data.featureDict.keys())
+                    if rank != PARTY_ID.SERVER:
+                        node.leftBranch.instances = [self.original_data.featureDict[fName][index] <= sValue for index in range(self.nUsers)]
+                        node.rightBranch.instances = [self.original_data.featureDict[fName][index] > sValue for index in range(self.nUsers)]
+                    new_nodes[c].append(node.leftBranch)
+                    new_nodes[c].append(node.rightBranch)
                 else:
                     node.weight = splitInfo.weight
                     node.score = splitInfo.nodeScore
@@ -254,7 +248,6 @@ class SFXGBoost(SFXGBoostClassifierBase):
 
 
     def predictweights(self, X, fName): # returns weights
-            
             # if type(X) == np.ndarray:
             #     X = DataBase.data_matrix_to_database(X, fName)
 
