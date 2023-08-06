@@ -3,11 +3,11 @@ import pandas as pd
 from scipy import rand
 
 from SFXGBoost.common.BasicTypes import Direction
-from SFXGBoost.common.XGBoostcommon import SplittingInfo
+from SFXGBoost.data_structure.treestructure import SplittingInfo
 from SFXGBoost.config import rank
 
 class QuantileParam:
-    epsilon = 0.005
+    epsilon = 0.005 # privacy parameter
     thres_balance = 0.2
 
 class FeatureData:
@@ -156,8 +156,6 @@ class DataBase:
         # print(len(featureName))
         # print(nFeatures)
         # print(len(featureName) == nFeatures)
-        print(len(featureName))
-        print(nFeatures)
         assert (len(featureName) == nFeatures) # The total amount of columns must match the assigned name 
         
         dataBase = DataBase()

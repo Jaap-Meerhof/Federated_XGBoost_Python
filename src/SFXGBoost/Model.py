@@ -108,8 +108,9 @@ class SFXGBoost(SFXGBoostClassifierBase):
             y_pred = np.tile(init_Probas, (self.nUsers, 1)) # nClasses, nUsers
             y = self.y
             instances = [np.full((self.original_data.nUsers,), True)]
+            G, H = None, None
             for t in range(self.config.max_tree):
-                G, H = getGradientHessians(np.argmax(y, axis=1), y_pred) # nUsers, nClasses
+                G, H = getGradientHessians(np.argmax(y, axis=1), y_pred, H) # nUsers, nClasses
                 G, H = np.array(G).T, np.array(H).T  # (nClasses, nUsers)
                 nodes = [[self.trees[c][t].root] for c in range(self.config.nClasses)]
                 
@@ -257,7 +258,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
             # Make predictions
             testDataBase = DataBase.data_matrix_to_database(X, fName)
             print(f"DEBUG: {np.shape(X)}, {np.shape(y_pred)}, {np.shape(self.init_Probas)}, {np.shape(self.trees)}")
-            print(f"{self.init_Probas}")
+            print(f"init_probas = {self.init_Probas}")
             for treeID in range(self.config.max_tree):
                 for c in range(self.config.nClasses):
                     tree = self.trees[c][treeID]
@@ -267,7 +268,6 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     b.display(treeID)
                     update_pred = tree.predict(testDataBase)
                     y_pred[:, c] += update_pred
-            print(y_pred)
             return y_pred
 
              

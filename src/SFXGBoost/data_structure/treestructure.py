@@ -116,7 +116,7 @@ class FLTreeNode(TreeNode):
     @staticmethod
     def compute_leaf_param(gVec, hVec, lamb):
         # sum over one features's gradients and hessians. all sums should be equal of all different features
-        
+        # param.h use thresholdL1 if alpha != 0
         gI = np.sum(gVec) # TODO other sum
         hI = np.sum(hVec)
         # print(f"gI = {gI}")

@@ -20,8 +20,8 @@ def test_global(config:Config, logger:Logger, model: SFXGBoostClassifierBase, ge
     log_distribution(logger, X_train, y_train, y_test)
     if rank == PARTY_ID.SERVER:
         import xgboost as xgb
-        xgboostmodel = xgb.XGBClassifier(max_depth=6, objective="multi:softmax", tree_method="approx",
-                            learning_rate=0.3, n_estimators=20, gamma=0, reg_alpha=0, reg_lambda=1)
+        xgboostmodel = xgb.XGBClassifier(max_depth=config.max_depth, objective="multi:softmax", tree_method="approx",
+                            learning_rate=1, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=0, reg_lambda=config.lam)
         xgboostmodel.fit(X_train, np.argmax(y_train, axis=1))
         from sklearn.metrics import accuracy_score
         y_pred_xgb = xgboostmodel.predict(X_test)
@@ -68,16 +68,17 @@ POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
 def main():
-    config = Config(nameTest="test",
+    config = Config(nameTest="synthetic test",
            model="normal",
-           dataset="texas",
-           lam=1,
+           dataset="synthetic",
+           lam=0.1,
            gamma=0.5,
-           max_depth=4,
+           max_depth=6,
            max_tree=10,
-           nClasses=100,
-           nFeatures=11)
+           nClasses=4,
+           nFeatures=8) # 11 texas, 600 purchase
     logger = MyLogger(config).logger
+    logger.debug(config.prettyprint())
     from SFXGBoost.dataset.datasetRetrieval import getDataBase
     if config.model == "normal":
         model = SFXGBoost(config, logger)

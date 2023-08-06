@@ -24,6 +24,17 @@ class Config:
         self.nClasses = nClasses
         self.nFeatures = nFeatures
 
+    def prettyprint(self):
+        print(f"test: {self.nameTest}")
+        print(f"model: {self.model}")
+        print(f"datset: {self.dataset}")
+        print(f"nClasses: {self.nClasses}")
+        print(f"nFeatures: {self.nFeatures}")
+        print(f"lambda:{self.lam}")
+        print(f"gamma: {self.gamma}")
+        print(f"max_depth: {self.max_depth}")
+        print(f"max_tree: {self.max_tree}")
+
 class MyLogger:
     def __init__(self, config:Config):
 

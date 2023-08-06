@@ -1,6 +1,6 @@
 from SFXGBoost.config import rank
 import numpy as np
-
+from sklearn.model_selection import train_test_split
 dataset = 'purchase-10' 
 dataset_list = ['purchase-10', 'purchase-20', 'purchase-50', 'purchase-100', 'texas', 'MNIST', 'synthetic', 'Census', 'DNA']
 
@@ -33,9 +33,9 @@ def getPurchase(num, paths):
     # 
     # logger.warning(f"getting purchase {num} dataset!")
 
-    train_size = 10_000
+    train_size = 20_000
     test_size = 10_000
-    random_state = 69
+    random_state = 690
     shadow_size = 30_000 # take in mind that this shadow_set is devided in 3 sets
 
     def returnfunc():
@@ -48,7 +48,6 @@ def getPurchase(num, paths):
         y = y.reshape(-1, 1)
         y = makeOneHot(y) 
         y_shadow, y = take_and_remove_items(y, shadow_size)       
-        from sklearn.model_selection import train_test_split
         X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, test_size=test_size, random_state=random_state)
         
         fName = []
@@ -63,8 +62,8 @@ def getPurchase(num, paths):
 def getTexas(paths):
     def returnfunc():
         # logger.warning("getting Texas database!")
-        train_size = 30_000
-        test_size = 20_000
+        train_size = 50_000
+        test_size = 30_000
         random_state = 69
         shadow_size = 30_000    
 
@@ -82,7 +81,6 @@ def getTexas(paths):
         y = y.reshape(-1, 1)
         y = makeOneHot(y)
         y_shadow, y = take_and_remove_items(y, shadow_size)       
-        from sklearn.model_selection import train_test_split
         X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, test_size=test_size, random_state=random_state)
         # logger.warning("got Texas database!")
     
@@ -95,8 +93,24 @@ getTexas(POSSIBLE_PATHS)
 def getMNIST(paths):
     return
 
-def getSynthetic(paths):
-    return
+def getSynthetic():
+    train_size = 50_000
+    test_size = 30_000
+    random_state = 420
+    shadow_size = 30_000    
+    
+    def returnfunc():
+        from sklearn.datasets import make_classification
+        n_features = 8
+        X, y = make_classification(n_samples=100_000, n_features=n_features, n_informative=5, n_redundant=0, n_clusters_per_class=1, class_sep=1.0, n_classes=4, random_state=random_state)
+        y = y.reshape(-1, 1)
+        y = makeOneHot(y)
+        fName = [str(i) for i in range(0, n_features)]
+        X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, test_size=test_size, random_state=random_state)
+        X_shadow = None
+        y_shadow = None
+        return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
+    return returnfunc
 
 def getCensus(paths):
     return
@@ -108,9 +122,9 @@ def getDNA(paths):
 def getDataBase(dataBaseName, paths):
     """After setting the database in the config, this will retrieve the database
     """
-    get_databasefunc = {'purchase-10getTexas': getPurchase(10, paths), 'purchase-20':getPurchase(20, paths), 
+    get_databasefunc = {'purchase-10': getPurchase(10, paths), 'purchase-20':getPurchase(20, paths), 
                     'purchase-50':getPurchase(50, paths), 'purchase-100':getPurchase(100, paths), 
-                    'texas':getTexas(paths), 'MNIST':getMNIST(paths), 'synthetic':getSynthetic(paths), 
+                    'texas':getTexas(paths), 'MNIST':getMNIST(paths), 'synthetic':getSynthetic(), 
                     'Census':getCensus(paths), 'DNA':getDNA(paths)
                    }[dataBaseName]
     return get_databasefunc

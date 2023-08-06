@@ -95,45 +95,45 @@ def get_splitting_score(G, H, GL, GR, HL, HR, lamb = XgboostLearningParam.LAMBDA
     return score.reshape(-1)
  
 
-class SplittingInfo:
-    def __init__(self) -> None:
-        self.bestSplitScore = -np.Infinity
-        self.bestSplitParty = None
-        self.bestSplittingVector = None
-        self.selectedFeatureID = 0
-        self.selectedCandidate = 0
-        self.isValid = False
+# class SplittingInfo:
+#     def __init__(self) -> None:
+#         self.bestSplitScore = -np.Infinity
+#         self.bestSplitParty = None
+#         self.bestSplittingVector = None
+#         self.selectedFeatureID = 0
+#         self.selectedCandidate = 0
+#         self.isValid = False
 
-        self.featureName = None
-        self.splitValue = 0.0
+#         self.featureName = None
+#         self.splitValue = 0.0
 
-    def delSplittinVector(self): # performance attempt
-        self.bestSplittingVector = None
+#     def delSplittinVector(self): # performance attempt
+#         self.bestSplittingVector = None
 
-    def log(self, logger):
-        logger.debug("Best Splitting Score: L = %.2f, Selected Party %s",\
-                self.bestSplitScore, str(self.bestSplitParty))
-        logger.debug("%s", self.get_str_split_info())
-        logger.debug("The optimal splitting vector: %s| Feature ID: %s| Candidate ID: %s",\
-            str(self.bestSplittingVector), str(self.selectedFeatureID), str(self.selectedCandidate))
+#     def log(self, logger):
+#         logger.debug("Best Splitting Score: L = %.2f, Selected Party %s",\
+#                 self.bestSplitScore, str(self.bestSplitParty))
+#         logger.debug("%s", self.get_str_split_info())
+#         logger.debug("The optimal splitting vector: %s| Feature ID: %s| Candidate ID: %s",\
+#             str(self.bestSplittingVector), str(self.selectedFeatureID), str(self.selectedCandidate))
 
 
-    def get_str_split_info(self):
-        """
+#     def get_str_split_info(self):
+#         """
         
-        """
-        retStr = ''
-        if(self.bestSplittingVector is not None):
-            retStr = "[P: %s, N = %s, " % (str(self.bestSplitParty), str(len(self.bestSplittingVector)))
-        else:
-            return "Infeasible splitting option. The tree growing should be terminated..."
+#         """
+#         retStr = ''
+#         if(self.bestSplittingVector is not None):
+#             retStr = "[P: %s, N = %s, " % (str(self.bestSplitParty), str(len(self.bestSplittingVector)))
+#         else:
+#             return "Infeasible splitting option. The tree growing should be terminated..."
 
         
-        if(self.featureName is not None): # implies the private splitting info is set by the owner party
-            retStr += "F: %s, S: %.4f]" % (str(self.featureName), (self.splitValue))
-        else:
-            retStr += "F: Unknown, s: Unknown]" 
-        return retStr
+#         if(self.featureName is not None): # implies the private splitting info is set by the owner party
+#             retStr += "F: %s, S: %.4f]" % (str(self.featureName), (self.splitValue))
+#         else:
+#             retStr += "F: Unknown, s: Unknown]" 
+#         return retStr
 
 
 class FedQueryInfo:
