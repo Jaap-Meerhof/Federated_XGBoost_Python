@@ -14,6 +14,8 @@ class MSG_ID:
     RESPONSE_GRADIENTS = 70
     SPLIT_UPDATE = 71
     INITIAL_QUANTILE_SPLITS = 72
+    Quantile_QJ = 86
+    Quantile_nPrime_i = 89
 
 class SFXGBoostClassifierBase:
     def __init__(self, config:Config, logger:Logger, treeSet) -> None:
@@ -35,6 +37,7 @@ class SFXGBoostClassifierBase:
                 for tree in treesofclass:
                     assert type(tree) == SFXGBoostTree
                     tree.setInstances(nUsers, np.full((nUsers, ), True)) # sets all root nodes to have all instances set to True
+
 
 class SFXGBoost(SFXGBoostClassifierBase):
     def __init__(self, config:Config, logger:Logger) -> None:
@@ -94,7 +97,11 @@ class SFXGBoost(SFXGBoostClassifierBase):
         ### PARTICIPANTS ###
         ####################
         else:
-            if rank == 1:
+            
+            # new_splits = self.quantile_lookup()
+            # print("DEBUG found splits")
+
+            if rank == 1: # send found splits to server (doesn't need to be done)
                 # def getSplits(quantileDB:QuantiledDataBase):
                 splits = [ [] for _ in range(self.nFeatures)]
                 i = 0
@@ -132,7 +139,66 @@ class SFXGBoost(SFXGBoostClassifierBase):
                 FLVisNode(self.logger, self.trees[0][t].root).display(t)
                 update_pred = np.array([tree.predict(orgData) for tree in self.trees[:, t]]).T
                 y_pred += update_pred
-     
+    
+    def quantile_lookup(self):
+        """The different participants will run this algorithm to find the quantile splits.
+        This algorithm DOES NOT actually run the secure aggregation. We simply assume it is secure for the research
+        Outputs: Quantiles {Q_1,...,Q_{q-1}}
+        """
+        q = self.config.nBuckets
+        X = self.original_data
+        n = 50_000 # number of samples
+        print(f"my users = {self.nUsers},  total = {n}")
+        l = comm.Get_size()
+        Pl = 1
+        isPl = rank == Pl # active party 
+        Q = np.zeros((self.nFeatures, q))
+        other_users = [i for i in range(1, l) if i != rank]
+        for featureid in range(self.config.nFeatures):
+            features_i = deepcopy(X.featureDict[list(X.featureDict.keys())[featureid]])
+            for j in range(1, q-1):
+                Qj = None
+                if isPl:
+                    Qmin = np.min(features_i)
+                    Qmax = np.max(features_i)
+                nPrime = 0
+                while np.abs(nPrime - (n/q)) > 0:
+                    if isPl:
+                        Qj = (Qmin + Qmax) / 2
+                        for i in other_users:
+                            comm.send(Qj, i, tag=MSG_ID.Quantile_QJ)
+                    else:
+                        Qj = comm.recv(source=Pl, tag=MSG_ID.Quantile_QJ)
+
+                    nPrime_i = np.sum(features_i < Qj) #total nummber of local xs that are smaller than Qj
+                    #secure aggregation part
+                    nPrimes = np.zeros(l)
+                    nPrimes[rank] = nPrime_i
+
+                    for i in other_users: # 
+                        comm.send(nPrime_i, i, MSG_ID.Quantile_nPrime_i)
+                    for i in other_users: # 
+                        nPrime_i = comm.recv(source=i, tag=MSG_ID.Quantile_nPrime_i)
+                        nPrimes[i] = nPrime_i
+                    nPrime = np.sum(nPrimes) # sum over recv
+                    # print(f"nPrime = {nPrime} for user {rank}")
+                    if isPl and nPrime > n/q:
+                        Qmax = Qj
+                    elif isPl and nPrime < n/q:
+                        Qmin = Qj
+                Q[featureid][j] = Qj
+                print(f"my rank is {rank} with Qj = {Qj}")
+                features_i = featureid[featureid < Qj] # remove the local xs that are smaller than Qj
+        return Q
+
+
+                    
+
+
+
+
+
+
     def find_split(self, splits, gradient, hessian, is_last_level):
         """_summary_
 

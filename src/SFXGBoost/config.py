@@ -13,7 +13,7 @@ np.set_printoptions(linewidth=np.inf)
 np.set_printoptions(precision=4, suppress=True)
 
 class Config:
-    def __init__(self, nameTest:str, model:str, dataset:str, lam:float, gamma:float, max_depth:int, max_tree:int, nClasses:int, nFeatures):
+    def __init__(self, nameTest:str, model:str, dataset:str, lam:float, gamma:float, max_depth:int, max_tree:int, nClasses:int, nFeatures:int, nBuckets:int):
         self.nameTest = nameTest
         self.model = model
         self.dataset = dataset
@@ -23,11 +23,12 @@ class Config:
         self.max_tree = max_tree
         self.nClasses = nClasses
         self.nFeatures = nFeatures
+        self.nBuckets = nBuckets
 
     def prettyprint(self):
         print(f"test: {self.nameTest}")
         print(f"model: {self.model}")
-        print(f"datset: {self.dataset}")
+        print(f"dataset: {self.dataset}")
         print(f"nClasses: {self.nClasses}")
         print(f"nFeatures: {self.nFeatures}")
         print(f"lambda:{self.lam}")
