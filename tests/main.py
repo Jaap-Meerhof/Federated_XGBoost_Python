@@ -3,6 +3,10 @@ import numpy as np
 from logging import Logger
 from SFXGBoost.Model import PARTY_ID, SFXGBoostClassifierBase, SFXGBoost
 from SFXGBoost.data_structure.databasestructure import QuantiledDataBase, DataBase
+from SFXGBoost.MemberShip import preform_attack_centralised
+import xgboost as xgb
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.neural_network import MLPClassifier
 
 def log_distribution(logger, X_train, y_train, y_test):
     nTrain = len(y_train)
@@ -15,18 +19,7 @@ def log_distribution(logger, X_train, y_train, y_test):
     logger.warning("DataDistribution, nTrain: %d, zeroRate: %f, nTest: %d, ratioTest: %f, nFeature: %d", 
     nTrain, rTrain, nTest, rTest, X_train.shape[1])
 
-def test_global(config:Config, logger:Logger, model: SFXGBoostClassifierBase, getDatabaseFunc):
-    X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDatabaseFunc()
-    log_distribution(logger, X_train, y_train, y_test)
-    if rank == PARTY_ID.SERVER:
-        import xgboost as xgb
-        xgboostmodel = xgb.XGBClassifier(max_depth=config.max_depth, objective="multi:softmax", tree_method="exact",
-                            learning_rate=0.3, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=0, reg_lambda=config.lam)
-        xgboostmodel.fit(X_train, np.argmax(y_train, axis=1))
-        from sklearn.metrics import accuracy_score
-        y_pred_xgb = xgboostmodel.predict(X_test)
-        print(f"Accuracy xgboost normal = {accuracy_score(np.argmax(y_test, axis=1), y_pred_xgb)}")
-
+def fit(X_train, y_train, X_test, fName, model):
     quantile = QuantiledDataBase(DataBase.data_matrix_to_database(X_train, fName) )
 
     initprobability = (sum(y_train))/len(y_train)
@@ -53,13 +46,28 @@ def test_global(config:Config, logger:Logger, model: SFXGBoostClassifierBase, ge
     model.boost(initprobability)
 
     if rank == PARTY_ID.SERVER:
-        y_pred = model.predict(X_test, fName)
+        y_pred = model.predict(X_test)
     else:
         y_pred = [] # basically a none
 
     y_pred_org = y_pred.copy()
     X = X_train
     y = y_train 
+    return X, y, y_pred_org
+
+def test_global(config:Config, logger:Logger, model: SFXGBoostClassifierBase, getDatabaseFunc):
+    X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDatabaseFunc()
+    log_distribution(logger, X_train, y_train, y_test)
+    if rank == PARTY_ID.SERVER:
+        import xgboost as xgb
+        xgboostmodel = xgb.XGBClassifier(ax_depth=config.max_depth, objective="multi:softmax", tree_method="approx",
+                            learning_rate=0.3, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=0, reg_lambda=config.lam)
+        xgboostmodel.fit(X_train, np.argmax(y_train, axis=1))
+        from sklearn.metrics import accuracy_score
+        y_pred_xgb = xgboostmodel.predict(X_test)
+        print(f"Accuracy xgboost normal = {accuracy_score(np.argmax(y_test, axis=1), y_pred_xgb)}")
+
+    X, y, y_pred_org = fit(X_train, y_train, X_test, fName, model)
     
     return X, y, y_pred_org, y_test, model, X_shadow, y_shadow
 
@@ -83,8 +91,14 @@ def main():
     from SFXGBoost.dataset.datasetRetrieval import getDataBase
     if config.model == "normal":
         model = SFXGBoost(config, logger)
+        shadow_model = SFXGBoost(config, logger)
+        attack_model = xgb.XGBClassifier(tree_method="exact", objective='binary:logistic', max_depth=8, n_estimators=50, learning_rate=0.3)
+        # attack_model = DecisionTreeClassifier(max_depth=6,max_leaf_nodes=10)
+        # attack_model = MLPClassifier(hidden_layer_sizes=(10,10), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
         
     X, y, y_pred_org, y_test, model, X_shadow, y_shadow = test_global(config, logger, model, getDataBase(config.dataset, POSSIBLE_PATHS))
+    
+    preform_attack_centralised(config, (X_shadow, y_shadow), model, shadow_model, attack_model, X, y)
 
     if rank == 0:
         from sklearn.metrics import accuracy_score

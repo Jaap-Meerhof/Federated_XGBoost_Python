@@ -37,6 +37,36 @@ class SFXGBoostClassifierBase:
                 for tree in treesofclass:
                     assert type(tree) == SFXGBoostTree
                     tree.setInstances(nUsers, np.full((nUsers, ), True)) # sets all root nodes to have all instances set to True
+        
+        def fit(self, X_train, y_train, fName) -> SFXGBoostClassifierBase:
+            quantile = QuantiledDataBase(DataBase.data_matrix_to_database(X_train, fName) )
+
+            initprobability = (sum(y_train))/len(y_train)
+            total_users = comm.Get_size() - 1
+            total_lenght = len(X_train)
+            elements_per_node = total_lenght//total_users
+            start_end = [(i * elements_per_node, (i+1)* elements_per_node) for i in range(total_users)]
+
+            if rank != PARTY_ID.SERVER:
+                start = start_end[rank-1][0]
+                end = start_end[rank-1][1]
+                X_train_my = X_train[start:end, :]
+                y_train_my = y_train[start:end]
+
+            # split up the database between the users
+            if rank == PARTY_ID.SERVER:
+                pass
+                self.setData(fName=fName)
+            else:
+                original = DataBase.data_matrix_to_database(X_train_my, fName)
+                quantile = quantile.splitupHorizontal(start_end[rank-1][0], start_end[rank-1][1])
+                self.setData(quantile, fName, original, y_train_my)
+            
+            self.boost(initprobability)
+            return self
+        
+            
+
 
 
 class SFXGBoost(SFXGBoostClassifierBase):
@@ -49,7 +79,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
     
     def setSplits(self, splits):
         self.splits = splits
-
+    
     def boost(self, init_Probas):
         self.init_Probas = init_Probas
         ####################
@@ -299,8 +329,8 @@ class SFXGBoost(SFXGBoostClassifierBase):
         return Gkv, Hkv, Dx
         # comm.send((Gkv, Hkv, Dx), PARTY_ID.SERVER, tag=MSG_ID.RESPONSE_GRADIENTS)
 
-    def predict(self, X, fName): # returns class number
-        y_pred = self.predictweights(X, fName) # get leaf node weights
+    def predict(self, X): # returns class number
+        y_pred = self.predictweights(X) # get leaf node weights
         return np.argmax(y_pred, axis=1)
     
     def predict_proba(self, X): # returns probabilities of all classes
@@ -314,15 +344,15 @@ class SFXGBoost(SFXGBoostClassifierBase):
         return y_pred
 
 
-    def predictweights(self, X, fName): # returns weights
+    def predictweights(self, X): # returns weights
             # if type(X) == np.ndarray:
-            #     X = DataBase.data_matrix_to_database(X, fName)
+            #     X = DataBase.data_matrix_to_database(X, self.fName)
 
             # y_pred = [None for n in range(self.nClasses)]
             y_pred = np.tile(self.init_Probas, (len(X) , 1)) #(Nclasses, xrows)
             data_num = X.shape[0]
             # Make predictions
-            testDataBase = DataBase.data_matrix_to_database(X, fName)
+            testDataBase = DataBase.data_matrix_to_database(X, self.fName)
             print(f"DEBUG: {np.shape(X)}, {np.shape(y_pred)}, {np.shape(self.init_Probas)}, {np.shape(self.trees)}")
             print(f"init_probas = {self.init_Probas}")
             for treeID in range(self.config.max_tree):
