@@ -100,15 +100,19 @@ def getSynthetic():
     shadow_size = 30_000    
     
     def returnfunc():
+        """returns ndarrays with all X types and y where y is One Hot encoded
+
+        Returns:
+            _type_: _description_
+        """
         from sklearn.datasets import make_classification
         n_features = 8
-        X, y = make_classification(n_samples=100_000, n_features=n_features, n_informative=5, n_redundant=0, n_clusters_per_class=1, class_sep=1.0, n_classes=4, random_state=random_state)
+        X, y = make_classification(n_samples=train_size+test_size+shadow_size, n_features=n_features, n_informative=5, n_redundant=0, n_clusters_per_class=1, class_sep=1.0, n_classes=4, random_state=random_state)
         y = y.reshape(-1, 1)
         y = makeOneHot(y)
         fName = [str(i) for i in range(0, n_features)]
-        X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, test_size=test_size, random_state=random_state)
-        X_shadow = None
-        y_shadow = None
+        X_train, X_test_shadow, y_train, y_test_shadow = train_test_split(X, y, train_size=train_size, test_size=test_size+shadow_size, random_state=random_state)
+        X_shadow, X_test, y_shadow, y_test = train_test_split(X_test_shadow, y_test_shadow, train_size=shadow_size, test_size=test_size, random_state=random_state)
         return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
     return returnfunc
 
