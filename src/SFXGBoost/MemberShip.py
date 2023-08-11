@@ -33,7 +33,7 @@ def f_random(D_Train_Shadow, D_Out_Shadow):
         D_Train_Shadow (Tuple(np.ndarray)): holds X and y
         D_Out_Shadow (Tuple(np.ndarray)): holds X and y
     """
-    max_lenght = np.max(D_Train_Shadow[0].shape[0], D_Out_Shadow[0].shape[0]) # make it such that the concatenated list is 50/50 split
+    max_lenght = np.max((D_Train_Shadow[0].shape[0], D_Out_Shadow[0].shape[0])) # make it such that the concatenated list is 50/50 split
     X_Train_Shadow = D_Train_Shadow[0][:max_lenght, :]
     X_Out_Shadow = D_Out_Shadow[0][:max_lenght, :]
 
@@ -48,11 +48,13 @@ def f_random(D_Train_Shadow, D_Out_Shadow):
     np.random.shuffle(X_Train_Attack)
 
     #remove and take labels
-    labels = X_Train_Shadow[:, -1]  # take last column
+    labels = X_Train_Attack[:, -1]  # take last column
     X_Train_Attack = X_Train_Attack[:, :-1]  # take everything but the last column
+    # print(f"labels = {labels.shape}")
+    # print(f"X_Train_Attack = {X_Train_Attack.shape}")
     return X_Train_Attack, labels
 
-def preform_attack_centralised(config:Config, D_Shadow, target_model, shadow_model, attack_model, X, y, fName=None) -> np.array():
+def preform_attack_centralised(config:Config, D_Shadow, target_model, shadow_model, attack_model, X, y, fName=None) -> np.ndarray:
     """_summary_
 
     Args:
@@ -62,23 +64,26 @@ def preform_attack_centralised(config:Config, D_Shadow, target_model, shadow_mod
     
     y_pred=None
     if type(shadow_model) != SFXGBoost:
-        y_pred = shadow_model.fit(D_Train_Shadow, D_Train_Shadow).predict(D_Test)
+        y_pred = shadow_model.fit(D_Train_Shadow[0], D_Train_Shadow[1]).predict(D_Test[0])
     else:
-        y_pred = shadow_model.fit(D_Train_Shadow, D_Train_Shadow, fName).predict(D_Test)
+        y_pred = shadow_model.fit(D_Train_Shadow[0], D_Train_Shadow[1], fName).predict(D_Test[0])
     
-    Metric_shadow_acc = accuracy_score(D_Test[1], y_pred)
+    Metric_shadow_acc = accuracy_score(np.argmax(D_Test[1], axis=1), y_pred)
     del y_pred
     
-    z, label = f_random(D_Train_Shadow, D_Out_Shadow)
-    z_train, z_test, label_train, label_test = train_test_split(z, label, train_size=0.8, test_size=0.2, random_state=12)
-
+    x, label = f_random(D_Train_Shadow, D_Out_Shadow)
+    
+    X_train, X_test, label_train, label_test = train_test_split(x, label, test_size=0.2, random_state=12)
+    z_train = shadow_model.predict_proba(X_train)
+    z_test = target_model.predict_proba(X) # todo test data outside
 
     attack_model.fit(z_train, label_train)
     
-    y_pred = attack_model.predict(z_test)
-    Metric_attack_acc = accuracy_score(label_test, y_pred)
-    Metric_attack_precision = precision_score(label_test, y_pred)
+    y_pred = attack_model.predict(target_model.predict_proba(X))
+    Metric_attack_acc = accuracy_score(np.ones((X.shape[0])), y_pred)
     print(f"DEBUG: accuracy attack: {Metric_attack_acc}")
+    Metric_attack_precision = precision_score(np.ones((X.shape[0])), y_pred)
+    print(f"DEBUG: precision attack: {Metric_attack_precision}")
 
 
 

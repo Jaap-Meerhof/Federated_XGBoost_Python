@@ -38,32 +38,7 @@ class SFXGBoostClassifierBase:
                     assert type(tree) == SFXGBoostTree
                     tree.setInstances(nUsers, np.full((nUsers, ), True)) # sets all root nodes to have all instances set to True
         
-        def fit(self, X_train, y_train, fName) -> SFXGBoostClassifierBase:
-            quantile = QuantiledDataBase(DataBase.data_matrix_to_database(X_train, fName) )
-
-            initprobability = (sum(y_train))/len(y_train)
-            total_users = comm.Get_size() - 1
-            total_lenght = len(X_train)
-            elements_per_node = total_lenght//total_users
-            start_end = [(i * elements_per_node, (i+1)* elements_per_node) for i in range(total_users)]
-
-            if rank != PARTY_ID.SERVER:
-                start = start_end[rank-1][0]
-                end = start_end[rank-1][1]
-                X_train_my = X_train[start:end, :]
-                y_train_my = y_train[start:end]
-
-            # split up the database between the users
-            if rank == PARTY_ID.SERVER:
-                pass
-                self.setData(fName=fName)
-            else:
-                original = DataBase.data_matrix_to_database(X_train_my, fName)
-                quantile = quantile.splitupHorizontal(start_end[rank-1][0], start_end[rank-1][1])
-                self.setData(quantile, fName, original, y_train_my)
-            
-            self.boost(initprobability)
-            return self
+        
         
             
 
@@ -222,7 +197,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
         return Q
 
 
-                    
+                
 
 
 
@@ -328,13 +303,40 @@ class SFXGBoost(SFXGBoostClassifierBase):
             k -=- 1
         return Gkv, Hkv, Dx
         # comm.send((Gkv, Hkv, Dx), PARTY_ID.SERVER, tag=MSG_ID.RESPONSE_GRADIENTS)
+    
+    def fit(self, X_train, y_train, fName):
+            quantile = QuantiledDataBase(DataBase.data_matrix_to_database(X_train, fName) )
 
+            initprobability = (sum(y_train))/len(y_train)
+            total_users = comm.Get_size() - 1
+            total_lenght = len(X_train)
+            elements_per_node = total_lenght//total_users
+            start_end = [(i * elements_per_node, (i+1)* elements_per_node) for i in range(total_users)]
+
+            if rank != PARTY_ID.SERVER:
+                start = start_end[rank-1][0]
+                end = start_end[rank-1][1]
+                X_train_my = X_train[start:end, :]
+                y_train_my = y_train[start:end]
+
+            # split up the database between the users
+            if rank == PARTY_ID.SERVER:
+                pass
+                self.setData(fName=fName)
+            else:
+                original = DataBase.data_matrix_to_database(X_train_my, fName)
+                quantile = quantile.splitupHorizontal(start_end[rank-1][0], start_end[rank-1][1])
+                self.setData(quantile, fName, original, y_train_my)
+            
+            self.boost(initprobability)
+            return self
+    
     def predict(self, X): # returns class number
         y_pred = self.predictweights(X) # get leaf node weights
         return np.argmax(y_pred, axis=1)
     
     def predict_proba(self, X): # returns probabilities of all classes
-        y_pred = self.predict(X) # returns weights
+        y_pred = self.predictweights(X) # returns weights
         for rowid in range(np.shape(y_pred)[0]):
             row = y_pred[rowid, :]
             wmax = max(row)
@@ -342,8 +344,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
             for y in row: wsum += np.exp(y-wmax)
             y_pred[rowid, :] = np.exp(row-wmax) / wsum
         return y_pred
-
-
+    
     def predictweights(self, X): # returns weights
             # if type(X) == np.ndarray:
             #     X = DataBase.data_matrix_to_database(X, self.fName)

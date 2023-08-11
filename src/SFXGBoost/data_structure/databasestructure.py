@@ -7,7 +7,7 @@ from SFXGBoost.data_structure.treestructure import SplittingInfo
 from SFXGBoost.config import rank
 
 class QuantileParam:
-    epsilon = 0.005 # privacy parameter
+    epsilon = 0.05 # privacy parameter
     thres_balance = 0.1
 
 class FeatureData:

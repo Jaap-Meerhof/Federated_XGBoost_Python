@@ -5,7 +5,7 @@ from datetime import date
 import time
 import os
 import numpy as np
-
+from SFXGBoost.dataset.datasetRetrieval import getConfigParams
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -13,7 +13,7 @@ np.set_printoptions(linewidth=np.inf)
 np.set_printoptions(precision=4, suppress=True)
 
 class Config:
-    def __init__(self, nameTest:str, model:str, dataset:str, lam:float, gamma:float, max_depth:int, max_tree:int, nClasses:int, nFeatures:int, nBuckets:int):
+    def __init__(self, nameTest:str, model:str, dataset:str, lam:float, gamma:float, max_depth:int, max_tree:int, nBuckets:int):
         self.nameTest = nameTest
         self.model = model
         self.dataset = dataset
@@ -21,9 +21,10 @@ class Config:
         self.gamma = gamma
         self.max_depth = max_depth
         self.max_tree = max_tree
-        self.nClasses = nClasses
-        self.nFeatures = nFeatures
+        self.nClasses, self.nFeatures = getConfigParams(self.dataset)
         self.nBuckets = nBuckets
+
+        self.save_location= "Saves/" + nameTest + "/"
 
     def prettyprint(self):
         print(f"test: {self.nameTest}")

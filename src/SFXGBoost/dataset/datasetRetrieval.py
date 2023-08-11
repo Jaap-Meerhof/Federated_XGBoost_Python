@@ -1,4 +1,3 @@
-from SFXGBoost.config import rank
 import numpy as np
 from sklearn.model_selection import train_test_split
 dataset = 'purchase-10' 
@@ -132,3 +131,17 @@ def getDataBase(dataBaseName, paths):
                     'Census':getCensus(paths), 'DNA':getDNA(paths)
                    }[dataBaseName]
     return get_databasefunc
+
+def getConfigParams(dataBaseName): # retreive n_classes, n_features
+
+    get_databasefunc = {'purchase-10': (10, 600), # nClasses, nFeatures
+                        'purchase-20': (20, 600), 
+                        'purchase-50': (50, 600), 
+                        'purchase-100':(100, 600), 
+                        'texas':(100, 11), 
+                        'MNIST':(-1, -1), 
+                        'synthetic':(4, 8), 
+                        'Census':(-1, -1), 
+                        'DNA':(-1, -1)
+                   }[dataBaseName]
+    return get_databasefunc[0], get_databasefunc[1]

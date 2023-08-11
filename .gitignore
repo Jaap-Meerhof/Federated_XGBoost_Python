@@ -1,6 +1,7 @@
 Log/
 error*.txt
 output*.txt
+Saves/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

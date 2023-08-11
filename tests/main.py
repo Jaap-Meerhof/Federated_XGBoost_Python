@@ -7,6 +7,7 @@ from SFXGBoost.MemberShip import preform_attack_centralised
 import xgboost as xgb
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neural_network import MLPClassifier
+from SFXGBoost.common.pickler import *
 
 def log_distribution(logger, X_train, y_train, y_test):
     nTrain = len(y_train)
@@ -45,6 +46,7 @@ def fit(X_train, y_train, X_test, fName, model):
     
     model.boost(initprobability)
 
+    
     if rank == PARTY_ID.SERVER:
         y_pred = model.predict(X_test)
     else:
@@ -66,25 +68,24 @@ def test_global(config:Config, logger:Logger, model: SFXGBoostClassifierBase, ge
         from sklearn.metrics import accuracy_score
         y_pred_xgb = xgboostmodel.predict(X_test)
         print(f"Accuracy xgboost normal = {accuracy_score(np.argmax(y_test, axis=1), y_pred_xgb)}")
-
-    X, y, y_pred_org = fit(X_train, y_train, X_test, fName, model)
     
-    return X, y, y_pred_org, y_test, model, X_shadow, y_shadow
+    X, y, y_pred_org = fit(X_train, y_train, X_test, fName, model)
+    # TODO make it such that model.fit gets used instead. its more clear and easy! 
+    
+    return X, y, y_pred_org, y_test, model, X_shadow, y_shadow, fName
 
 dataset_list = ['purchase-10', 'purchase-20', 'purchase-50', 'purchase-100', 'texas', 'MNIST', 'synthetic', 'Census', 'DNA']
 POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
 def main():
-    config = Config(nameTest="texas test",
+    config = Config(nameTest="purchase-10 test",
            model="normal",
-           dataset="texas",
+           dataset="purchase-10",
            lam=0.1, # 0.1 10
            gamma=0.5,
-           max_depth=12,
-           max_tree=15,
-           nClasses=100, # 
-           nFeatures=11, # 11 texas, 600 purchase
+           max_depth=5,
+           max_tree=10,
            nBuckets=100)
     logger = MyLogger(config).logger
     if rank ==0 : logger.debug(config.prettyprint())
@@ -95,10 +96,12 @@ def main():
         attack_model = xgb.XGBClassifier(tree_method="exact", objective='binary:logistic', max_depth=8, n_estimators=50, learning_rate=0.3)
         # attack_model = DecisionTreeClassifier(max_depth=6,max_leaf_nodes=10)
         # attack_model = MLPClassifier(hidden_layer_sizes=(10,10), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
-        
-    X, y, y_pred_org, y_test, model, X_shadow, y_shadow = test_global(config, logger, model, getDataBase(config.dataset, POSSIBLE_PATHS))
     
-    preform_attack_centralised(config, (X_shadow, y_shadow), model, shadow_model, attack_model, X, y)
+    # if isSaved(config.nameTest, config):
+    #     shadow_model = retrieve("model", config)
+    X, y, y_pred_org, y_test, model, X_shadow, y_shadow, fName = test_global(config, logger, model, getDataBase(config.dataset, POSSIBLE_PATHS))
+    
+    preform_attack_centralised(config, (X_shadow, y_shadow), model, shadow_model, attack_model, X, y, fName)
 
     if rank == 0:
         from sklearn.metrics import accuracy_score
