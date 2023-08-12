@@ -74,7 +74,7 @@ def test_global(config:Config, logger:Logger, model: SFXGBoostClassifierBase, ge
     
     return X, y, y_pred_org, y_test, model, X_shadow, y_shadow, fName
 
-dataset_list = ['purchase-10', 'purchase-20', 'purchase-50', 'purchase-100', 'texas', 'MNIST', 'synthetic', 'Census', 'DNA']
+dataset_list = ['purchase-10', 'purchase-20', 'purchase-50', 'purchase-100', 'texas', 'healthcare', 'MNIST', 'synthetic', 'Census', 'DNA']
 POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]

@@ -1,5 +1,8 @@
 import numpy as np
 from sklearn.model_selection import train_test_split
+import os
+import pandas as pd
+
 dataset = 'purchase-10' 
 dataset_list = ['purchase-10', 'purchase-20', 'purchase-50', 'purchase-100', 'texas', 'MNIST', 'synthetic', 'Census', 'DNA']
 
@@ -12,6 +15,12 @@ def check_mul_paths(filename, paths):
                 return obj
         except FileNotFoundError:
             continue
+    raise FileNotFoundError("File not found in all paths :(")
+
+def check_mul_paths_csv(filename, paths):
+    for path in paths:
+        if os.path.exists(path+ filename + '.csv'):
+            return pd.read_csv(path + filename + ".csv")
     raise FileNotFoundError("File not found in all paths :(")
 
 def take_and_remove_items(arr, size): #sshoutout to Chat-gpt
@@ -88,7 +97,8 @@ def getTexas(paths):
 POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
-getTexas(POSSIBLE_PATHS)
+# getTexas(POSSIBLE_PATHS)
+
 def getMNIST(paths):
     return
 
@@ -121,21 +131,43 @@ def getCensus(paths):
 def getDNA(paths):
     return
 
-def getHealthcare(paths):
-    import pandas as pd
-    train = pd.read_csv(paths + "AV_healthcareAnalyticsII/train_data.csv")
-    test = pd.read_csv(paths + "AV_healthcareAnalyticsII/test_data.csv")
-    test = pd.read_csv(paths + "AV_healthcareAnalyticsII/train_data_dictionary.csv")
+def getHealthcare(paths): # https://www.kaggle.com/datasets/nehaprabhavalkar/av-healthcare-analytics-ii
+    train_size = 100_000
+    test_size = 30_000
+    random_state = 420
+    shadow_size = 300_000   
 
+    def returnfunc():
+        train = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data.csv", paths)
+        test = check_mul_paths_csv("AV_HealthcareAnalyticsII/test_data.csv", paths)
+        dict = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data_dictionary.csv", paths)
+        sample = check_mul_paths_csv("AV_HealthcareAnalyticsII/sample_sub.csv", paths)
 
-getHealthcare()
+        fName = train.columns.tolist()[1:]
+        X_train = train.values[:train_size, 1:]
+        y_train = train.values[:train_size, 17]
+        X_shadow = train.values[train_size:train_size+shadow_size, 1:]
+        y_shadow = train.values[train_size:train_size+shadow_size, 17]
+        # X_test = test.values[:test_size, 1:]
+        # y_test = sample.values[:test_size, 1]
+        X_test = test.values[train_size+shadow_size:train_size+shadow_size+test_size, 1:]
+        y_test = sample.values[train_size+shadow_size:train_size+shadow_size+test_size, 1]
+        return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
+
+    # data = np.genfromtxt(paths + "AV_HealthcareAnalyticsII/train_data.csv")
+    return returnfunc
+
+POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
+                      "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
+                      "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
+getHealthcare("/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/")()
 
 def getDataBase(dataBaseName, paths):
     """After setting the database in the config, this will retrieve the database
     """
     get_databasefunc = {'purchase-10': getPurchase(10, paths), 'purchase-20':getPurchase(20, paths), 
                     'purchase-50':getPurchase(50, paths), 'purchase-100':getPurchase(100, paths), 
-                    'texas':getTexas(paths), 'MNIST':getMNIST(paths), 'synthetic':getSynthetic(), 
+                    'texas':getTexas(paths), 'healthcare':getHealthcare(paths), 'MNIST':getMNIST(paths), 'synthetic':getSynthetic(), 
                     'Census':getCensus(paths), 'DNA':getDNA(paths)
                    }[dataBaseName]
     return get_databasefunc
@@ -147,6 +179,7 @@ def getConfigParams(dataBaseName): # retreive n_classes, n_features
                         'purchase-50': (50, 600), 
                         'purchase-100':(100, 600), 
                         'texas':(100, 11), 
+                        'healthcare':(10, 16),
                         'MNIST':(-1, -1), 
                         'synthetic':(4, 8), 
                         'Census':(-1, -1), 
