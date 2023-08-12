@@ -143,7 +143,20 @@ def getHealthcare(paths): # https://www.kaggle.com/datasets/nehaprabhavalkar/av-
         test = check_mul_paths_csv("AV_HealthcareAnalyticsII/test_data", paths)
         dict = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data_dictionary", paths)
         sample = check_mul_paths_csv("AV_HealthcareAnalyticsII/sample_sub", paths)
+        strings = ['Hospital_type_code', 'Hospital_region_code', 'Department', 'Ward_Type', 'Ward_Facility_Code', 'Type of Admission', 'Severity of Illness', 'Age', 'Stay']
 
+        # def complex_factorize(df, col):
+        #     ser = pd.Series(df[col].unique())
+        #     func = lambda x: sorted(x.values.ravel())
+        #     arr = np.hstack(ser.groupby(ser.str.len()).apply(func).values)
+        #     return pd.factorize(arr)
+        # val, ser = complex_factorize(train, 'Hospital_type_code')
+        # train.replace(ser, val)
+        for featureName in strings:
+            train[featureName] = train[featureName].factorize()[0]
+
+        # train[strings] = train[strings].apply(lambda x: pd.factorize(x)[0])
+        # train = train.apply(lambda x: pd.factorize(x)[0])
         fName = train.columns.tolist()[1:]
         X_train = train.values[:train_size, 1:]
         y_train = train.values[:train_size, 17]
