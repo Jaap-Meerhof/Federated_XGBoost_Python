@@ -121,6 +121,14 @@ def getCensus(paths):
 def getDNA(paths):
     return
 
+def getHealthcare(paths):
+    import pandas as pd
+    train = pd.read_csv(paths + "AV_healthcareAnalyticsII/train_data.csv")
+    test = pd.read_csv(paths + "AV_healthcareAnalyticsII/test_data.csv")
+    test = pd.read_csv(paths + "AV_healthcareAnalyticsII/train_data_dictionary.csv")
+
+
+getHealthcare()
 
 def getDataBase(dataBaseName, paths):
     """After setting the database in the config, this will retrieve the database
