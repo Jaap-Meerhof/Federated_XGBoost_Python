@@ -19,6 +19,7 @@ def check_mul_paths(filename, paths):
 
 def check_mul_paths_csv(filename, paths):
     for path in paths:
+        # print(f"testing {path+ filename + '.csv'}")
         if os.path.exists(path+ filename + '.csv'):
             return pd.read_csv(path + filename + ".csv")
     raise FileNotFoundError("File not found in all paths :(")
@@ -138,10 +139,10 @@ def getHealthcare(paths): # https://www.kaggle.com/datasets/nehaprabhavalkar/av-
     shadow_size = 300_000   
 
     def returnfunc():
-        train = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data.csv", paths)
-        test = check_mul_paths_csv("AV_HealthcareAnalyticsII/test_data.csv", paths)
-        dict = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data_dictionary.csv", paths)
-        sample = check_mul_paths_csv("AV_HealthcareAnalyticsII/sample_sub.csv", paths)
+        train = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data", paths)
+        test = check_mul_paths_csv("AV_HealthcareAnalyticsII/test_data", paths)
+        dict = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data_dictionary", paths)
+        sample = check_mul_paths_csv("AV_HealthcareAnalyticsII/sample_sub", paths)
 
         fName = train.columns.tolist()[1:]
         X_train = train.values[:train_size, 1:]
@@ -150,8 +151,8 @@ def getHealthcare(paths): # https://www.kaggle.com/datasets/nehaprabhavalkar/av-
         y_shadow = train.values[train_size:train_size+shadow_size, 17]
         # X_test = test.values[:test_size, 1:]
         # y_test = sample.values[:test_size, 1]
-        X_test = test.values[train_size+shadow_size:train_size+shadow_size+test_size, 1:]
-        y_test = sample.values[train_size+shadow_size:train_size+shadow_size+test_size, 1]
+        X_test = train.values[train_size+shadow_size:train_size+shadow_size+test_size, 1:]
+        y_test = train.values[train_size+shadow_size:train_size+shadow_size+test_size, 17]
         return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
 
     # data = np.genfromtxt(paths + "AV_HealthcareAnalyticsII/train_data.csv")
@@ -160,7 +161,7 @@ def getHealthcare(paths): # https://www.kaggle.com/datasets/nehaprabhavalkar/av-
 POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
-getHealthcare("/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/")()
+# getHealthcare("/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/")()
 
 def getDataBase(dataBaseName, paths):
     """After setting the database in the config, this will retrieve the database

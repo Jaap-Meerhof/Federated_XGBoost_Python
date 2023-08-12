@@ -81,7 +81,7 @@ POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
 def main():
     config = Config(nameTest="purchase-10 test",
            model="normal",
-           dataset="purchase-10",
+           dataset="healthcare",
            lam=0.1, # 0.1 10
            gamma=0.5,
            max_depth=5,
