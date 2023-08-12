@@ -136,7 +136,7 @@ def getHealthcare(paths): # https://www.kaggle.com/datasets/nehaprabhavalkar/av-
     train_size = 100_000
     test_size = 30_000
     random_state = 420
-    shadow_size = 300_000   
+    shadow_size = 150_000   
 
     def returnfunc():
         train = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data", paths)
@@ -161,7 +161,7 @@ def getHealthcare(paths): # https://www.kaggle.com/datasets/nehaprabhavalkar/av-
 POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
-# getHealthcare("/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/")()
+# getHealthcare(POSSIBLE_PATHS)()
 
 def getDataBase(dataBaseName, paths):
     """After setting the database in the config, this will retrieve the database
