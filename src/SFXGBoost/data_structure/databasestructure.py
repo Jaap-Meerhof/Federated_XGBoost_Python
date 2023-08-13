@@ -8,7 +8,7 @@ from SFXGBoost.config import rank
 
 class QuantileParam:
     epsilon = 0.05 # privacy parameter
-    thres_balance = 0.1
+    thres_balance = 0.001
 
 class FeatureData:
     def __init__(self, name, dataVector) -> None:

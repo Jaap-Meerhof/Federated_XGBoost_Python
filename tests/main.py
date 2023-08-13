@@ -60,6 +60,7 @@ def fit(X_train, y_train, X_test, fName, model):
 def test_global(config:Config, logger:Logger, model: SFXGBoostClassifierBase, getDatabaseFunc):
     X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDatabaseFunc()
     log_distribution(logger, X_train, y_train, y_test)
+    xgboostmodel = None
     if rank == PARTY_ID.SERVER:
         import xgboost as xgb
         xgboostmodel = xgb.XGBClassifier(ax_depth=config.max_depth, objective="multi:softmax", tree_method="approx",
@@ -70,6 +71,9 @@ def test_global(config:Config, logger:Logger, model: SFXGBoostClassifierBase, ge
         print(f"Accuracy xgboost normal = {accuracy_score(np.argmax(y_test, axis=1), y_pred_xgb)}")
     
     X, y, y_pred_org = fit(X_train, y_train, X_test, fName, model)
+    # X, y = X_train, y_train
+    # y_pred_org = xgboostmodel.predict(X_test)
+    # model = xgboostmodel
     # TODO make it such that model.fit gets used instead. its more clear and easy! 
     
     return X, y, y_pred_org, y_test, model, X_shadow, y_shadow, fName
@@ -79,13 +83,16 @@ POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
 def main():
-    config = Config(nameTest="purchase-10 test",
+    dataset = "healthcare"
+    config = Config(nameTest= dataset + " test",
            model="normal",
-           dataset="healthcare",
+           dataset=dataset,
            lam=0.1, # 0.1 10
            gamma=0.5,
+           alpha=0.0,
+           learning_rate=0.3,
            max_depth=5,
-           max_tree=10,
+           max_tree=9,
            nBuckets=100)
     logger = MyLogger(config).logger
     if rank ==0 : logger.debug(config.prettyprint())
@@ -93,7 +100,9 @@ def main():
     if config.model == "normal":
         model = SFXGBoost(config, logger)
         shadow_model = SFXGBoost(config, logger)
-        attack_model = xgb.XGBClassifier(tree_method="exact", objective='binary:logistic', max_depth=8, n_estimators=50, learning_rate=0.3)
+        # shadow_model = xgb.XGBClassifier(ax_depth=config.max_depth, objective="multi:softmax", tree_method="approx",
+        #                 learning_rate=0.3, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=0, reg_lambda=config.lam)
+        attack_model = xgb.XGBClassifier(tree_method="exact", objective='binary:logistic', max_depth=10, n_estimators=30, learning_rate=0.3)
         # attack_model = DecisionTreeClassifier(max_depth=6,max_leaf_nodes=10)
         # attack_model = MLPClassifier(hidden_layer_sizes=(10,10), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
     

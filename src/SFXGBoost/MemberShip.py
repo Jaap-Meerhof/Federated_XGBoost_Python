@@ -64,7 +64,7 @@ def preform_attack_centralised(config:Config, D_Shadow, target_model, shadow_mod
     
     y_pred=None
     if type(shadow_model) != SFXGBoost:
-        y_pred = shadow_model.fit(D_Train_Shadow[0], D_Train_Shadow[1]).predict(D_Test[0])
+        y_pred = shadow_model.fit(D_Train_Shadow[0], np.argmax(D_Train_Shadow[1], axis=1)).predict(D_Test[0])
     else:
         y_pred = shadow_model.fit(D_Train_Shadow[0], D_Train_Shadow[1], fName).predict(D_Test[0])
     
@@ -76,14 +76,15 @@ def preform_attack_centralised(config:Config, D_Shadow, target_model, shadow_mod
     X_train, X_test, label_train, label_test = train_test_split(x, label, test_size=0.2, random_state=12)
     z_train = shadow_model.predict_proba(X_train)
     z_test = target_model.predict_proba(X) # todo test data outside
-
+    test_x, test_label = f_random((X,y), D_Test)
     attack_model.fit(z_train, label_train)
     
-    y_pred = attack_model.predict(target_model.predict_proba(X))
-    Metric_attack_acc = accuracy_score(np.ones((X.shape[0])), y_pred)
+    y_pred = attack_model.predict(target_model.predict_proba(test_x))
+    Metric_attack_acc = accuracy_score(test_label, y_pred)
     print(f"DEBUG: accuracy attack: {Metric_attack_acc}")
-    Metric_attack_precision = precision_score(np.ones((X.shape[0])), y_pred)
+    Metric_attack_precision = precision_score(test_label, y_pred)
     print(f"DEBUG: precision attack: {Metric_attack_precision}")
+    print(f"DEBUG: {y_pred}")
 
 
 

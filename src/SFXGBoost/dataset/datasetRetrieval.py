@@ -158,14 +158,16 @@ def getHealthcare(paths): # https://www.kaggle.com/datasets/nehaprabhavalkar/av-
         # train[strings] = train[strings].apply(lambda x: pd.factorize(x)[0])
         # train = train.apply(lambda x: pd.factorize(x)[0])
         fName = train.columns.tolist()[1:]
-        X_train = train.values[:train_size, 1:]
-        y_train = train.values[:train_size, 17]
-        X_shadow = train.values[train_size:train_size+shadow_size, 1:]
-        y_shadow = train.values[train_size:train_size+shadow_size, 17]
+        X = train.values[:, 1:]
+        y = makeOneHot(y = train.values[:, 17].reshape(-1,1))
+        X_train = X[:train_size]
+        y_train = y[:train_size]
+        X_shadow = X[train_size:train_size+shadow_size]
+        y_shadow = y[train_size:train_size+shadow_size]
         # X_test = test.values[:test_size, 1:]
         # y_test = sample.values[:test_size, 1]
-        X_test = train.values[train_size+shadow_size:train_size+shadow_size+test_size, 1:]
-        y_test = train.values[train_size+shadow_size:train_size+shadow_size+test_size, 17]
+        X_test = X[train_size+shadow_size:train_size+shadow_size+test_size]
+        y_test = y[train_size+shadow_size:train_size+shadow_size+test_size]
         return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
 
     # data = np.genfromtxt(paths + "AV_HealthcareAnalyticsII/train_data.csv")
@@ -193,7 +195,7 @@ def getConfigParams(dataBaseName): # retreive n_classes, n_features
                         'purchase-50': (50, 600), 
                         'purchase-100':(100, 600), 
                         'texas':(100, 11), 
-                        'healthcare':(10, 16),
+                        'healthcare':(11, 16),
                         'MNIST':(-1, -1), 
                         'synthetic':(4, 8), 
                         'Census':(-1, -1), 

@@ -4,7 +4,7 @@ import numpy as np
 from SFXGBoost.data_structure.treestructure import FLTreeNode, SplittingInfo
 from copy import deepcopy
 from SFXGBoost.data_structure.databasestructure import QuantiledDataBase, DataBase
-from SFXGBoost.common.XGBoostcommon import PARTY_ID, L, Direction
+from SFXGBoost.common.XGBoostcommon import PARTY_ID, L, Direction, weights_to_probas
 from SFXGBoost.loss.softmax import getGradientHessians
 from SFXGBoost.view.TreeRender import FLVisNode
 from typing import List
@@ -89,7 +89,16 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     splittingInfos = [[] for _ in range(self.config.nClasses)] 
                     print("got gradients")
                     for c in range(self.config.nClasses):
-                        for i, n in enumerate(nodes[c]):
+                        # def test(i):
+                        #     print(f"working on node c={c} i={i}")
+                        #     split_cn = self.find_split(splits, G[c][i], H[c][i], l+1 == self.config.max_depth)
+                        #     splittingInfos[c].append(split_cn)
+                        #     return None
+                        # import concurrent.futures
+                        # with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                        #     results = list(executor.map(test, range(len(nodes[c]))))
+                        # print(results)
+                        for i, n in enumerate(nodes[c]): #TODO multithread!
                             split_cn = self.find_split(splits, G[c][i], H[c][i], l+1 == self.config.max_depth)
                             splittingInfos[c].append(split_cn)
                     
@@ -118,11 +127,13 @@ class SFXGBoost(SFXGBoostClassifierBase):
 
             orgData = deepcopy(self.original_data)
             y_pred = np.tile(init_Probas, (self.nUsers, 1)) # nClasses, nUsers
+            # y_pred = np.zer
+
             y = self.y
             instances = [np.full((self.original_data.nUsers,), True)]
             G, H = None, None
             for t in range(self.config.max_tree):
-                G, H = getGradientHessians(np.argmax(y, axis=1), y_pred, H) # nUsers, nClasses
+                G, H = getGradientHessians(np.argmax(y, axis=1), y_pred) # nUsers, nClasses
                 G, H = np.array(G).T, np.array(H).T  # (nClasses, nUsers)
                 nodes = [[self.trees[c][t].root] for c in range(self.config.nClasses)]
                 
@@ -197,13 +208,6 @@ class SFXGBoost(SFXGBoostClassifierBase):
         return Q
 
 
-                
-
-
-
-
-
-
     def find_split(self, splits, gradient, hessian, is_last_level):
         """_summary_
 
@@ -238,8 +242,8 @@ class SFXGBoost(SFXGBoostClassifierBase):
         # print(value)
         # print(maxScore)
         
-        weight, nodeScore = FLTreeNode.compute_leaf_param(gVec=gradient[0], hVec=hessian[0], lamb=self.config.lam) #TODO not done correctly should be done seperately!
-
+        weight, nodeScore = FLTreeNode.compute_leaf_param(gVec=gradient[0], hVec=hessian[0], lamb=self.config.lam, alpha=self.config.alpha) #TODO not done correctly should be done seperately!
+        weight = self.config.learning_rate * weight
         return SplittingInfo(bestSplitScore=maxScore, featureName=featureName, splitValue=value, weight=weight, nodeScore=nodeScore)
 
     def update_trees(self, last_level_nodes:List[List[FLTreeNode]], splits:List[List[SplittingInfo]], depth):
@@ -332,7 +336,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
             return self
     
     def predict(self, X): # returns class number
-        y_pred = self.predictweights(X) # get leaf node weights
+        y_pred = self.predict_proba(X) # get leaf node weights
         return np.argmax(y_pred, axis=1)
     
     def predict_proba(self, X): # returns probabilities of all classes
@@ -351,6 +355,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
 
             # y_pred = [None for n in range(self.nClasses)]
             y_pred = np.tile(self.init_Probas, (len(X) , 1)) #(Nclasses, xrows)
+            # y_pred = np.zeros((len(X), self.config.nClasses))
             data_num = X.shape[0]
             # Make predictions
             testDataBase = DataBase.data_matrix_to_database(X, self.fName)
@@ -364,7 +369,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     b = FLVisNode(self.logger, tree.root)
                     b.display(treeID)
                     update_pred = tree.predict(testDataBase)
-                    y_pred[:, c] += update_pred
+                    y_pred[:, c] += update_pred * self.config.learning_rate
             return y_pred
 
              

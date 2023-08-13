@@ -13,12 +13,14 @@ np.set_printoptions(linewidth=np.inf)
 np.set_printoptions(precision=4, suppress=True)
 
 class Config:
-    def __init__(self, nameTest:str, model:str, dataset:str, lam:float, gamma:float, max_depth:int, max_tree:int, nBuckets:int):
+    def __init__(self, nameTest:str, model:str, dataset:str, lam:float, gamma:float, alpha:float, learning_rate:float, max_depth:int, max_tree:int, nBuckets:int):
         self.nameTest = nameTest
         self.model = model
         self.dataset = dataset
         self.lam = lam
         self.gamma = gamma
+        self.alpha = alpha
+        self.learning_rate = learning_rate
         self.max_depth = max_depth
         self.max_tree = max_tree
         self.nClasses, self.nFeatures = getConfigParams(self.dataset)

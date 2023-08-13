@@ -73,6 +73,22 @@ def compute_splitting_score_quantile(splits, GVec, HVec, lamb, gamma):
 
     return value, feature, maxscore, ghleft, ghright
 
+def weights_to_probas(y_pred):
+    for rowid in range(np.shape(y_pred)[0]):
+                row = y_pred[rowid, :]
+                wmax = max(row)
+                wsum = 0
+                for y in row: wsum += np.exp(y-wmax)
+                y_pred[rowid, :] = np.exp(row-wmax) / wsum
+    return y_pred
+
+def ThresholdL1(g, alpha):
+    if g > alpha:
+        return g - alpha
+    elif g < -alpha:
+        return g + alpha
+    else:
+        return 0.0
 
 def compute_splitting_score(SM, GVec, HVec, lamb, gamma):
     G = sum(GVec)

@@ -1,6 +1,6 @@
 
 import numpy as np
-
+from SFXGBoost.common.XGBoostcommon import ThresholdL1
 class SplittingInfo:
     def __init__(self, bestSplitScore = -np.Infinity, featureName=None, splitValue=0.0, weight = None, nodeScore = None) -> None:
         self.bestSplitScore = bestSplitScore
@@ -114,14 +114,13 @@ class FLTreeNode(TreeNode):
         return score
 
     @staticmethod
-    def compute_leaf_param(gVec, hVec, lamb):
+    def compute_leaf_param(gVec, hVec, lamb, alpha):
         # sum over one features's gradients and hessians. all sums should be equal of all different features
         # param.h use thresholdL1 if alpha != 0
         gI = np.sum(gVec) # TODO other sum
         hI = np.sum(hVec)
         # print(f"gI = {gI}")
         # print(f"hI = {hI}")
-
-        weight = -1.0 * gI / (hI + lamb)
+        weight = -1.0 * ThresholdL1(gI / (hI + lamb), alpha)
         score = 1/2 * weight * gI
         return weight, score
