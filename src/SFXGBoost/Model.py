@@ -124,15 +124,17 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     i += 1
 
                 comm.send(splits, PARTY_ID.SERVER, tag=MSG_ID.INITIAL_QUANTILE_SPLITS)
+                self.logger.debug(f"splits are {splits}")
 
             orgData = deepcopy(self.original_data)
-            y_pred = np.tile(init_Probas, (self.nUsers, 1)) # nClasses, nUsers
-            # y_pred = np.zer
+            # y_pred = np.tile(init_Probas, (self.nUsers, 1)) # nClasses, nUsers
+            y_pred = np.zeros((self.nUsers, self.config.nClasses))
+            y_pred = np.random.random(size=(self.nUsers, self.config.nClasses))
 
             y = self.y
-            instances = [np.full((self.original_data.nUsers,), True)]
             G, H = None, None
             for t in range(self.config.max_tree):
+                print(y_pred)
                 G, H = getGradientHessians(np.argmax(y, axis=1), y_pred) # nUsers, nClasses
                 G, H = np.array(G).T, np.array(H).T  # (nClasses, nUsers)
                 nodes = [[self.trees[c][t].root] for c in range(self.config.nClasses)]
@@ -144,6 +146,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     for c in range(self.config.nClasses):
                         for node in nodes[c]:
                             instances = node.instances
+                            # print(instances)
                             gcn, hcn, dx = self.appendGradients(instances, G[c], H[c], orgData)
                             Gnodes[c].append(gcn)
                             Hnodes[c].append(hcn)
@@ -152,9 +155,10 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     comm.send((Gnodes,Hnodes), PARTY_ID.SERVER, tag=MSG_ID.RESPONSE_GRADIENTS)
                     splits = comm.recv(source=PARTY_ID.SERVER, tag=MSG_ID.SPLIT_UPDATE)
                     nodes = self.update_trees(nodes, splits, l) # also update Instances
-                FLVisNode(self.logger, self.trees[0][t].root).display(t)
+                for c in range(self.config.nClasses):
+                    FLVisNode(self.logger, self.trees[c][t].root).display(t)
                 update_pred = np.array([tree.predict(orgData) for tree in self.trees[:, t]]).T
-                y_pred += update_pred
+                y_pred += update_pred * self.config.learning_rate
     
     def quantile_lookup(self):
         """The different participants will run this algorithm to find the quantile splits.
@@ -241,7 +245,10 @@ class SFXGBoost(SFXGBoostClassifierBase):
         # print(featureName)
         # print(value)
         # print(maxScore)
-        
+        # dice = np.random.randint(0, 1000)
+        # for i in range(0, len(gradient)-1):
+        #     print(f"i  = {i}:{np.sum(gradient[i])}, i+1 = {i+1}:{np.sum(gradient[i+1])} random -> {dice}")
+        # assert all([np.sum(gradient[i]) == np.sum(gradient[i+1]) for i in range(0, len(gradient)-1)])
         weight, nodeScore = FLTreeNode.compute_leaf_param(gVec=gradient[0], hVec=hessian[0], lamb=self.config.lam, alpha=self.config.alpha) #TODO not done correctly should be done seperately!
         weight = self.config.learning_rate * weight
         return SplittingInfo(bestSplitScore=maxScore, featureName=featureName, splitValue=value, weight=weight, nodeScore=nodeScore)
@@ -259,8 +266,8 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     sValue = splitInfo.splitValue
                     # print(self.original_data.featureDict.keys())
                     if rank != PARTY_ID.SERVER:
-                        node.leftBranch.instances = [self.original_data.featureDict[fName][index] <= sValue for index in range(self.nUsers)]
-                        node.rightBranch.instances = [self.original_data.featureDict[fName][index] > sValue for index in range(self.nUsers)]
+                        node.leftBranch.instances = np.logical_and([self.original_data.featureDict[fName][index] <= sValue for index in range(self.nUsers)], node.instances)
+                        node.rightBranch.instances = np.logical_and([self.original_data.featureDict[fName][index] > sValue for index in range(self.nUsers)], node.instances)
                     new_nodes[c].append(node.leftBranch)
                     new_nodes[c].append(node.rightBranch)
                 else:
@@ -289,11 +296,11 @@ class SFXGBoost(SFXGBoostClassifierBase):
 
             # append gradient of corresponding data to the bin in which the data fits.                                 
             bin_indices = np.searchsorted(splits, data) # indices 
-            bin_indices = [x-1 if x==len(splits) else x for x in bin_indices] # replace -1 with 0 such that upper most left values gets assigned to the right split. 
+            # bin_indices = [x-1 if x==len(splits) else x for x in bin_indices] # replace -1 with 0 such that upper most left values gets assigned to the right split. 
             
-            qData = [np.inf if x == len(splits) + 1 else x for x in np.searchsorted(splits, data)]
+            # qData = [np.inf if x == len(splits) + 1 else x for x in np.searchsorted(splits, data)]
 
-            Dx.append(qData)
+            # Dx.append(qData)
 
             for index in range(np.shape(data)[0]):
                 bin = bin_indices[index]
@@ -305,7 +312,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
             Hkv.append(Hk)
 
             k -=- 1
-        return Gkv, Hkv, Dx
+        return Gkv, Hkv, None
         # comm.send((Gkv, Hkv, Dx), PARTY_ID.SERVER, tag=MSG_ID.RESPONSE_GRADIENTS)
     
     def fit(self, X_train, y_train, fName):
@@ -354,13 +361,14 @@ class SFXGBoost(SFXGBoostClassifierBase):
             #     X = DataBase.data_matrix_to_database(X, self.fName)
 
             # y_pred = [None for n in range(self.nClasses)]
-            y_pred = np.tile(self.init_Probas, (len(X) , 1)) #(Nclasses, xrows)
-            # y_pred = np.zeros((len(X), self.config.nClasses))
+            # y_pred = np.tile(self.init_Probas, (len(X) , 1)) #(Nclasses, xrows)
+            y_pred = np.zeros((len(X), self.config.nClasses))
+
             data_num = X.shape[0]
             # Make predictions
             testDataBase = DataBase.data_matrix_to_database(X, self.fName)
-            print(f"DEBUG: {np.shape(X)}, {np.shape(y_pred)}, {np.shape(self.init_Probas)}, {np.shape(self.trees)}")
-            print(f"init_probas = {self.init_Probas}")
+            # print(f"DEBUG: {np.shape(X)}, {np.shape(y_pred)}, {np.shape(self.init_Probas)}, {np.shape(self.trees)}")
+            # print(f"init_probas = {self.init_Probas}")
             for treeID in range(self.config.max_tree):
                 for c in range(self.config.nClasses):
                     tree = self.trees[c][treeID]

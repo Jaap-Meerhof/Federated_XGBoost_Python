@@ -144,6 +144,8 @@ def getHealthcare(paths): # https://www.kaggle.com/datasets/nehaprabhavalkar/av-
         dict = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data_dictionary", paths)
         sample = check_mul_paths_csv("AV_HealthcareAnalyticsII/sample_sub", paths)
         strings = ['Hospital_type_code', 'Hospital_region_code', 'Department', 'Ward_Type', 'Ward_Facility_Code', 'Type of Admission', 'Severity of Illness', 'Age', 'Stay']
+        train = train.dropna()
+        
 
         # def complex_factorize(df, col):
         #     ser = pd.Series(df[col].unique())

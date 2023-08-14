@@ -90,7 +90,7 @@ def main():
            lam=0.1, # 0.1 10
            gamma=0.5,
            alpha=0.0,
-           learning_rate=0.3,
+           learning_rate=1,
            max_depth=5,
            max_tree=9,
            nBuckets=100)

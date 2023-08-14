@@ -7,7 +7,7 @@ class SplittingInfo:
         self.bestSplitParty = None
         self.selectedFeatureID = 0
         self.selectedCandidate = 0
-        self.instances = []
+        # self.instances = []
         self.featureName = featureName
         self.splitValue = splitValue
         
@@ -72,16 +72,13 @@ class TreeNode:
 
 
 class FLTreeNode(TreeNode):
-    def __init__(self, FID = 0, weight=0, leftBranch=None, rightBranch=None, ownerID = -1):
+    def __init__(self, FID = 0, weight=0, leftBranch=None, rightBranch=None, ownerID = -1, instances=None):
         super().__init__(weight, leftBranch, rightBranch)
         self.FID = FID
         self.owner = ownerID
         self.splittingInfo = SplittingInfo()
         self.score = None
-
-    def initTrees(self, nUsers): # not used
-        self.nUsers = nUsers
-        self.instances = np.full( (nUsers,), True)
+        self.instances = instances
 
 
     def get_private_info(self):
