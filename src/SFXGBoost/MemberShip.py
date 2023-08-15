@@ -33,9 +33,9 @@ def f_random(D_Train_Shadow, D_Out_Shadow):
         D_Train_Shadow (Tuple(np.ndarray)): holds X and y
         D_Out_Shadow (Tuple(np.ndarray)): holds X and y
     """
-    max_lenght = np.max((D_Train_Shadow[0].shape[0], D_Out_Shadow[0].shape[0])) # make it such that the concatenated list is 50/50 split
-    X_Train_Shadow = D_Train_Shadow[0][:max_lenght, :]
-    X_Out_Shadow = D_Out_Shadow[0][:max_lenght, :]
+    min_lenght = np.min((D_Train_Shadow[0].shape[0], D_Out_Shadow[0].shape[0])) # make it such that the concatenated list is 50/50 split
+    X_Train_Shadow = D_Train_Shadow[0][:min_lenght, :]
+    X_Out_Shadow = D_Out_Shadow[0][:min_lenght, :]
 
     # add an extra column with 1 if Train_Shadow else 0
     X_Train_Shadow = np.hstack( (X_Train_Shadow, np.ones((X_Train_Shadow.shape[0], 1)))) 

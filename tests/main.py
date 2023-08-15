@@ -67,6 +67,8 @@ def test_global(config:Config, logger:Logger, model: SFXGBoostClassifierBase, ge
                             learning_rate=0.3, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=0, reg_lambda=config.lam)
         xgboostmodel.fit(X_train, np.argmax(y_train, axis=1))
         from sklearn.metrics import accuracy_score
+        print(np.shape(X_test))
+
         y_pred_xgb = xgboostmodel.predict(X_test)
         print(f"Accuracy xgboost normal = {accuracy_score(np.argmax(y_test, axis=1), y_pred_xgb)}")
     
@@ -102,12 +104,21 @@ def main():
         shadow_model = SFXGBoost(config, logger)
         # shadow_model = xgb.XGBClassifier(ax_depth=config.max_depth, objective="multi:softmax", tree_method="approx",
         #                 learning_rate=0.3, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=0, reg_lambda=config.lam)
-        attack_model = xgb.XGBClassifier(tree_method="exact", objective='binary:logistic', max_depth=10, n_estimators=30, learning_rate=0.3)
+        # attack_model = xgb.XGBClassifier(tree_method="exact", objective='binary:logistic', max_depth=10, n_estimators=30, learning_rate=0.3)
         # attack_model = DecisionTreeClassifier(max_depth=6,max_leaf_nodes=10)
-        # attack_model = MLPClassifier(hidden_layer_sizes=(10,10), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
+        attack_model = MLPClassifier(hidden_layer_sizes=(20,11,11), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
     
     # if isSaved(config.nameTest, config):
     #     shadow_model = retrieve("model", config)
+    # TODO target_model = train_model()
+    # TODO shadow_model = train_model()
+    # that way I can save the model reuse it and apply different attack_models on it.
+    # TODO SFXGBoost().getGradients.
+    
+    # X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDataBase(config.dataset, POSSIBLE_PATHS)()
+    # log_distribution(logger, X_train, y_train, y_test)
+    # model.fit(X_train, y_train, fName)
+    
     X, y, y_pred_org, y_test, model, X_shadow, y_shadow, fName = test_global(config, logger, model, getDataBase(config.dataset, POSSIBLE_PATHS))
     
     preform_attack_centralised(config, (X_shadow, y_shadow), model, shadow_model, attack_model, X, y, fName)

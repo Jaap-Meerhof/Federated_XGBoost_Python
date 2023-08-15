@@ -136,7 +136,7 @@ def getHealthcare(paths): # https://www.kaggle.com/datasets/nehaprabhavalkar/av-
     train_size = 100_000
     test_size = 30_000
     random_state = 420
-    shadow_size = 150_000   
+    shadow_size = 150_000
 
     def returnfunc():
         train = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data", paths)
@@ -145,7 +145,7 @@ def getHealthcare(paths): # https://www.kaggle.com/datasets/nehaprabhavalkar/av-
         sample = check_mul_paths_csv("AV_HealthcareAnalyticsII/sample_sub", paths)
         strings = ['Hospital_type_code', 'Hospital_region_code', 'Department', 'Ward_Type', 'Ward_Facility_Code', 'Type of Admission', 'Severity of Illness', 'Age', 'Stay']
         train = train.dropna()
-        
+
 
         # def complex_factorize(df, col):
         #     ser = pd.Series(df[col].unique())
@@ -159,8 +159,8 @@ def getHealthcare(paths): # https://www.kaggle.com/datasets/nehaprabhavalkar/av-
 
         # train[strings] = train[strings].apply(lambda x: pd.factorize(x)[0])
         # train = train.apply(lambda x: pd.factorize(x)[0])
-        fName = train.columns.tolist()[1:]
-        X = train.values[:, 1:]
+        fName = train.columns.tolist()[1:17]
+        X = train.values[:, 1:17]
         y = makeOneHot(y = train.values[:, 17].reshape(-1,1))
         X_train = X[:train_size]
         y_train = y[:train_size]

@@ -4,7 +4,21 @@ import numpy as np
 from SFXGBoost.common.BasicTypes import Direction
 from SFXGBoost.config import rank
 
-L = lambda G,H, GL, GR, HL, HR, lamb, gamma: 1/2 * ((GL*GL / (HL + lamb)) + (GR*GR / (HR + lamb)) - (G*G / (H + lamb))) - gamma
+
+def ThresholdL1(g, alpha):
+    if g > alpha:
+        return g - alpha
+    elif g < -alpha:
+        return g + alpha
+    else:
+        return 0.0
+    
+# L = lambda G,H, GL, GR, HL, HR, lamb, gamma: 1/2 * ((ThresholdL1(GL*GL) / (HL + lamb)) + (ThresholdL1(GR*GR) / (HR + lamb)) - (ThresholdL1(G*G) / (H + lamb))) - gamma
+L = lambda G,H, GL, GR, HL, HR, lamb, alpha: ((ThresholdL1(GL*GL, alpha) / (HL + lamb)) + (ThresholdL1(GR*GR, alpha) / (HR + lamb)) - (ThresholdL1(G*G, alpha) / (H + lamb)))
+
+# L = lambda G,H, GL, GR, HL, HR, lamb, gamma, alpha: 1/2 * (ThresholdL1(GL, alpha) / (HL + lamb)) + (GR*GR / (HR + lamb)) - (G*G / (H + lamb))) - gamma
+
+# def computeSplitScore(Gl, Gr)
 
 class PARTY_ID:
     ACTIVE_PARTY = 1
@@ -82,13 +96,7 @@ def weights_to_probas(y_pred):
                 y_pred[rowid, :] = np.exp(row-wmax) / wsum
     return y_pred
 
-def ThresholdL1(g, alpha):
-    if g > alpha:
-        return g - alpha
-    elif g < -alpha:
-        return g + alpha
-    else:
-        return 0.0
+
 
 def compute_splitting_score(SM, GVec, HVec, lamb, gamma):
     G = sum(GVec)

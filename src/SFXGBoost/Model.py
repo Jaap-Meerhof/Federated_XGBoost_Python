@@ -62,14 +62,17 @@ class SFXGBoost(SFXGBoostClassifierBase):
         ####################
         if rank == PARTY_ID.SERVER:
             splits = comm.recv(source=1, tag=MSG_ID.INITIAL_QUANTILE_SPLITS)
-
+            self.logger.warning("splits:")
+            for i, split_k in enumerate(splits):
+                self.logger.warning(f"{self.fName[i]} = {split_k}")
+            
             for t in range(self.config.max_tree):
-                print("#####################")
+                # print("#####################")
                 print(f"> Busy with Tree {t} <")
-                print("#####################")
+                # print("#####################")
 
                 nodes = [[self.trees[c][t].root] for c in range(self.config.nClasses)] 
-                for l in range(self.config.max_depth):
+                for l in range(self.config.max_depth+1):
                     G = [[ [] for _ in range(len(nodes[c])) ] for c in range(self.config.nClasses)]
                     H = [[ [] for _ in range(len(nodes[c])) ] for c in range(self.config.nClasses)]
                     for Pi in range(1, comm.Get_size()):
@@ -87,7 +90,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                                     G[c][i] += Gpi[c][i]
                                     H[c][i] += Hpi[c][i]
                     splittingInfos = [[] for _ in range(self.config.nClasses)] 
-                    print("got gradients")
+                    # print("got gradients")
                     for c in range(self.config.nClasses):
                         # def test(i):
                         #     print(f"working on node c={c} i={i}")
@@ -99,7 +102,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                         #     results = list(executor.map(test, range(len(nodes[c]))))
                         # print(results)
                         for i, n in enumerate(nodes[c]): #TODO multithread!
-                            split_cn = self.find_split(splits, G[c][i], H[c][i], l+1 == self.config.max_depth)
+                            split_cn = self.find_split(splits, G[c][i], H[c][i], l == self.config.max_depth)
                             splittingInfos[c].append(split_cn)
                     
                     for Pi in range(1, comm.Get_size()):
@@ -134,12 +137,11 @@ class SFXGBoost(SFXGBoostClassifierBase):
             y = self.y
             G, H = None, None
             for t in range(self.config.max_tree):
-                print(y_pred)
                 G, H = getGradientHessians(np.argmax(y, axis=1), y_pred) # nUsers, nClasses
                 G, H = np.array(G).T, np.array(H).T  # (nClasses, nUsers)
                 nodes = [[self.trees[c][t].root] for c in range(self.config.nClasses)]
                 
-                for l in range(self.config.max_depth):
+                for l in range(self.config.max_depth+1):
                     Gnodes = [[] for _ in range(self.config.nClasses)]
                     Hnodes = [[] for _ in range(self.config.nClasses)]
 
@@ -151,7 +153,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                             Gnodes[c].append(gcn)
                             Hnodes[c].append(hcn)
                     # send the gradients for every class's tree, the different nodes that have to be updated in that tree and the 
-                    print(f"sending gradients as rank {rank} on level {l}")
+                    # print(f"sending gradients as rank {rank} on level {l}")
                     comm.send((Gnodes,Hnodes), PARTY_ID.SERVER, tag=MSG_ID.RESPONSE_GRADIENTS)
                     splits = comm.recv(source=PARTY_ID.SERVER, tag=MSG_ID.SPLIT_UPDATE)
                     nodes = self.update_trees(nodes, splits, l) # also update Instances
@@ -235,8 +237,8 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     Hl += hessian[k][v]
                     Gr = G-Gl
                     Hr = H-Hl
-                    score = L(G, H, Gl, Gr, Hl, Hr, self.config.lam, self.config.gamma)
-                    if score > maxScore:
+                    score = L(G, H, Gl, Gr, Hl, Hr, self.config.lam, self.config.alpha)
+                    if score > maxScore and Hl > 1 and Hr > 1: # TODO 1 = min_child_weight
                         value = splits[k][v]
                         feature = k
                         featureName = self.fName[k]
@@ -258,7 +260,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
         for c in range(self.config.nClasses):
             for n, node in enumerate(last_level_nodes[c]):
                 splitInfo = splits[c][n]
-                if splitInfo.isValid and depth+1 < self.config.max_depth:
+                if splitInfo.isValid and depth < self.config.max_depth:
                     node.splittingInfo = splitInfo
                     node.leftBranch = FLTreeNode()
                     node.rightBranch = FLTreeNode()

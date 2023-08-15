@@ -45,7 +45,8 @@ class MyLogger:
         logger = logging.getLogger()
         day = date.today().strftime("%b-%d-%Y")
 
-        curTime = round(time.time())
+        # curTime = round(time.time())
+        curTime = time.strftime("%H:%M", time.localtime())
 
         logName = 'Log/{}/{}/{}_{}/Rank_{}.log'.format(config.nameTest, str(day), str(curTime), str(config.model), str(rank))
         os.makedirs(os.path.dirname(logName), exist_ok=True)

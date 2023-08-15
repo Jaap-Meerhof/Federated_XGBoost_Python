@@ -118,6 +118,6 @@ class FLTreeNode(TreeNode):
         hI = np.sum(hVec)
         # print(f"gI = {gI}")
         # print(f"hI = {hI}")
-        weight = -1.0 * ThresholdL1(gI / (hI + lamb), alpha)
+        weight = -1.0 * ThresholdL1(gI, alpha) / (hI + lamb)
         score = 1/2 * weight * gI
         return weight, score

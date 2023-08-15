@@ -8,7 +8,7 @@ from SFXGBoost.data_structure.treestructure import TreeNode, FLTreeNode
 class FLVisNode():
     def __init__(self, logger, FLnode: FLTreeNode):
         self.key = FLnode.owner
-        self.key = str(FLnode.splittingInfo.featureName) + " " + str(FLnode.splittingInfo.splitValue)
+        self.key = str(FLnode.splittingInfo.featureName) + " " + f"{FLnode.splittingInfo.splitValue:.{2}f}"
         self.weight = FLnode.weight
         self.right = FLVisNode(logger, FLnode.rightBranch) if(FLnode.rightBranch is not None) else None
         self.left = FLVisNode(logger, FLnode.leftBranch) if(FLnode.leftBranch is not None) else None

@@ -9,7 +9,7 @@ def getGradientHessians(y, y_pred, case_weight=None):
     grad = np.zeros((y_pred.shape), dtype=float) # for multi-class
     hess = np.zeros((y_pred.shape), dtype=float) # for multi-class
     for rowid in range(y_pred.shape[0]):
-        wmax = max(y_pred[rowid]) # line 100 multiclass_obj.cu
+        wmax = max(y_pred[rowid]) # line 10s0 multiclass_obj.cu
         wsum =0.0
         for i in y_pred[rowid] : wsum +=  np.exp(i - wmax)
         for c in range(y_pred.shape[1]):
