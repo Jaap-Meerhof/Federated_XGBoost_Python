@@ -54,6 +54,14 @@ def f_random(D_Train_Shadow, D_Out_Shadow):
     # print(f"X_Train_Attack = {X_Train_Attack.shape}")
     return X_Train_Attack, labels
 
+def create_D_attack_centralised(shadow_model_s, D_Train_Shadow, D_Out_Shadow):
+    # Shadow_model_s can be multiple shadow_models! TODO deal with that!
+    x, labels = f_random(D_Train_Shadow, D_Out_Shadow)
+    z = shadow_model_s.predict(x)
+    z_top_indices = np.argsort(z)[::-1][:3]
+    z = np.take(z, z_top_indices)
+    return z, labels
+
 def preform_attack_centralised(config:Config, D_Shadow, target_model, shadow_model, attack_model, X, y, fName=None) -> np.ndarray:
     """_summary_
 
@@ -77,6 +85,8 @@ def preform_attack_centralised(config:Config, D_Shadow, target_model, shadow_mod
     z_train = shadow_model.predict_proba(X_train)
     z_test = target_model.predict_proba(X) # todo test data outside
     test_x, test_label = f_random((X,y), D_Test)
+    
+    
     attack_model.fit(z_train, label_train)
     
     y_pred = attack_model.predict(target_model.predict_proba(test_x))

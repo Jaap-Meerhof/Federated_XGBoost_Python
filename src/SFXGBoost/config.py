@@ -13,7 +13,8 @@ np.set_printoptions(linewidth=np.inf)
 np.set_printoptions(precision=4, suppress=True)
 
 class Config:
-    def __init__(self, nameTest:str, model:str, dataset:str, lam:float, gamma:float, alpha:float, learning_rate:float, max_depth:int, max_tree:int, nBuckets:int):
+    def __init__(self, experimentName:str, nameTest:str, model:str, dataset:str, lam:float, gamma:float, alpha:float, learning_rate:float, max_depth:int, max_tree:int, nBuckets:int):
+        self.experimentName = experimentName
         self.nameTest = nameTest
         self.model = model
         self.dataset = dataset
@@ -29,6 +30,7 @@ class Config:
         self.save_location= "Saves/" + nameTest + "/"
 
     def prettyprint(self):
+        print(f"experiment name = {self.experimentName}")
         print(f"test: {self.nameTest}")
         print(f"model: {self.model}")
         print(f"dataset: {self.dataset}")
