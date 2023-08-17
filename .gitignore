@@ -2,6 +2,9 @@ Log/
 error*.txt
 output*.txt
 Saves/
+# VSCodeCounter
+
+.VSCodeCounter/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

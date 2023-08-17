@@ -11,6 +11,7 @@ from logging import Logger
 import xgboost as xgb
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neural_network import MLPClassifier
+import torch
 
 def log_distribution(logger, X_train, y_train, y_test):
     nTrain = len(y_train)
@@ -87,29 +88,135 @@ dataset_list = ['purchase-10', 'purchase-20', 'purchase-50', 'purchase-100', 'te
 POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
-def train_all(target_model, shadow_model_s, attack_model, config, logger):
+
+def get_data_attack_centrally(target_model, shadow_model, attack_model, config, logger):
     X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDataBase(config.dataset, POSSIBLE_PATHS)()
     log_distribution(logger, X_train, y_train, y_test)
 
     target_model.fit(X_train, y_train, fName)
+    shadow_model.fit(D_Train_Shadow[0], D_Train_Shadow[1], fName)
     D_Train_Shadow, D_Out_Shadow, D_Test = split_shadow((X_shadow, y_shadow))
-    if type(shadow_model_s) == SFXGBoost:
-        shadow_model_s.fit(D_Train_Shadow[0], D_Train_Shadow[1], fName)
-    else:
-        for shadow_model in shadow_model_s:
-            shadow_model.fit(D_Train_Shadow[0], D_Train_Shadow[1], fName)  # TODO split shadow model such that they are not all the same!
+    z, labels = create_D_attack_centralised(shadow_model, D_Train_Shadow, D_Out_Shadow)
+    attack_model.fit(z, labels)
+    z_test, labels_test = create_D_attack_centralised(target_model, (X_train, y_train), D_Test)
+    
+    data = retrieve_data(target_model, shadow_model, attack_model, X_train, y_train, X_test, y_test, z_test, labels_test)
+    return data
 
-    z, labels = create_D_attack_centralised(shadow_model_s, D_Train_Shadow, D_Out_Shadow)
+def train_all_federated(target_model, shadow_models, attack_model, config:Config, logger:MyLogger) -> dict:
+    """Trains for a federated attack given the target_model, shadow_model(s), attack_model, config, logger
+
+    Args:
+        target_model (any): must support .fit() & .predict().or must be SFXGBoost.
+        shadow_models (any): must support .fit() & .predict().or must be SFXGBoost.
+        attack_model (any): must support .fit() & .predict().or must be SFXGBoost
+        config (Config): config with experiment variables
+        logger (MyLogger): logs the whole thing
+
+    Returns:
+        dict: dict that stores the different metrics, check retrieve_data for which metrics
+    """
+    X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDataBase(config.dataset, POSSIBLE_PATHS)()
+    log_distribution(logger, X_train, y_train, y_test)
+
+    target_model.fit(X_train, y_train, fName)
+
+    for shadow_model in shadow_models:
+
+        D_Train_Shadow, D_Out_Shadow, D_Test = split_shadow((X_shadow, y_shadow))
+        shadow_model.fit(D_Train_Shadow[0], D_Train_Shadow[1], fName)
+        shadow_model.retrieve_differentials()  # TODO implement, this will retrieve the gradients & hessians for the attack model
+    
+    attack_model = create_attack_model_federated()
 
     attack_model.fit(z, labels)
+
+    # create z_test and labels_test 
+    # z test is the | X_train + differentials --> label 1
+    #               | X_test + differentials --> label 0
+
+    data = retrieve_data(target_model, shadow_model, attack_model, X_train, y_train, X_test, y_test, z_test, labels_test)
+    return data
+
+def retrieve_data(target_model, shadow_model, attack_model, X_train, y_train, X_test, y_test, z_test, labels_test): # todo put this in SFXGBoost
+    data = {}
+    from sklearn.metrics import accuracy_score, precision_score
+
+    y_pred_train_target = target_model.predict(X_train)                 
+    y_pred_test_target = target_model.predict(X_test)                   
+    acc_train_target = accuracy_score(y_train, y_pred_train_target)     # accuarcy train target
+    data["accuracy train target"] = acc_train_target                         # accuracy train target
+    prec_train_target = precision_score(y_train, y_pred_train_target)
+    data["precision train target"] = prec_train_target
+    acc_test_target = accuracy_score(y_test, y_pred_test_target)
+    data["accuray test target"] = acc_test_attack
+    prec_test_target = precision_score(y_test, y_pred_test_target)
+    data["precision test target"] = prec_test_target
+    overfit_target = acc_train_target - acc_test_target
+    data["overfitting target"] = overfit_target
+
+    y_pred_train_shadow = shadow_model.predict(X_train)
+    y_pred_test_shadow = shadow_model.predict(X_test)
+    acc_train_shadow = accuracy_score(y_train, y_pred_train_shadow)
+    data["accuracy train shadow"] = acc_train_shadow
+    prec_train_shadow = precision_score(y_train, y_pred_train_shadow)
+    data["precision train shadow"] = prec_train_shadow
+    acc_test_shadow = accuracy_score(y_test, y_pred_test_shadow)
+    data["accuracy test shadow"] = acc_test_shadow
+    prec_test_shadow = precision_score(y_test, y_pred_test_shadow)
+    data["precision test shadow"] = prec_test_shadow
+    overfit_shadow = acc_train_shadow - acc_test_shadow
+    data["overfitting shadow"] = overfit_shadow
+
+    y_pred_test_attack = attack_model.predict(z_test) # true = labels_test
+    acc_test_attack = accuracy_score(labels_test, y_pred_test_attack)
+    data["accuracy test attack"] = acc_test_attack
+    prec_test_attack = precision_score(labels_test, y_pred_test_attack)
+    data["precision test attack"] = prec_test_attack
+    return data
+
+def create_attack_model_federated(config:Config):
+    import torch.nn as nn
+    class CNN(nn.Module):
+        def __init__(self, *args, **kwargs) -> None:
+            super().__init__(CNN, **kwargs).__init__()
+            
+            self.linear1 = nn.Linear()
+            self.linear2 = nn.Linear()
+            self.softmax = nn.Softmax()
+
+            self.differential_cov = [nn.Conv2d(stride=1) for depth in range(config.max_depth)] # TODO determine what the convolution should look like
+            self.dropout = nn.Dropout(p=0.2)
+            self.differential_lin2 = [nn.Linear() for depth in range(config.max_depth)]
+            self.f = nn.Sequential(
+                nn.Linear(100, 100), # TODO 
+                nn.ReLU(),
+                nn.Dropout(p=0.2)
+            )
+
+        def forward(self, x): 
+            # TODO add correcty data input
+            return self.f(x)
+        
+        def fit(self, x, y, num_epochs, lr):
+            criterion = nn.MSELoss
+            optimizer = torch.optim.Adam(self.parameters(), lr=lr)
+
+            for epoch in range(num_epochs):
+                pass
+
+    return CNN # returns the class
+
 
 def experiment2():
     seed = 10
 
-    datasets = ["healtcare", "MNIST", "synthetic", "Census", "DNA", "Purchase-10", "Purhase-20", "Purchase-50", "Purchase-100"]
-    targetArchitectures = ["XGBoost", "FederBoost", ]
-    for targetArchitecture in targetArchitectures:
+    datasets = ["healthcare", "MNIST", "synthetic", "Census", "DNA", "Purchase-10", "Purhase-20", "Purchase-50", "Purchase-100"]
+    targetArchitectures = ["XGBoost", "FederBoost-central", "FederBoost-federated"]
+    all_data = {} # all_data["XGBoost"]["healthcore"]["accuarcy train shadow"]
 
+    for targetArchitecture in targetArchitectures:
+        all_data[targetArchitecture] = {}
         for dataset in datasets:
             config = Config(experimentName= "experiment 2",
             nameTest= dataset + " test",
@@ -126,33 +233,38 @@ def experiment2():
             logger.warning(config.prettyprint())
             np.random.RandomState(seed) # TODO set seed sklearn.split
             
-            if targetArchitecture == "Federboost":
+            if targetArchitecture == "Federboost-central":
                 target_model = SFXGBoost(config, logger)
                 shadow_model = SFXGBoost(config, logger)
+                attack_model = MLPClassifier(hidden_layer_sizes=(20,11,11), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
+                data = get_data_attack_centrally(target_model, shadow_model, attack_model, config, logger)
+                all_data[targetArchitecture][dataset] = data
+            elif targetArchitecture == "FederBoost-federated":
+                target_model = SFXGBoost(config, logger)
                 shadow_models = [SFXGBoost(config, logger) for _ in range(10)]  # 
-                
-                attack_model_central = MLPClassifier(hidden_layer_sizes=(20,11,11), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
-                attack_model_federated = None  # TODO define federated neural network.
-
-
+                attack_model= None  # TODO define federated neural network.
+                data = train_all_federated(target_model, shadow_models, attack_model, config, logger)
+                all_data[targetArchitecture][dataset] = data
             elif targetArchitecture == "XGBoost":  # define neural network
                 target_model = xgb.XGBClassifier(ax_depth=config.max_depth, objective="multi:softmax", tree_method="approx",
                         learning_rate=config.learning_rate, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=config.alpha, reg_lambda=config.lam)
                 shadow_model = xgb.XGBClassifier(ax_depth=config.max_depth, objective="multi:softmax", tree_method="approx",
                         learning_rate=config.learning_rate, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=config.alpha, reg_lambda=config.lam)
                 attack_model = MLPClassifier(hidden_layer_sizes=(20,11,11), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
+                data = get_data_attack_centrally(target_model, shadow_model, attack_model, config, logger)
+                all_data[targetArchitecture][dataset] = data
             else:
                 raise Exception("Wrong model types given!")
             
-            train_all(target_model, shadow_model, attack_model, config, logger)
-            saver.save_experiment_2_one_run(attack_model, )
+            # saver.save_experiment_2_one_run(attack_model, )
 
-    saver.create_plots_experiment_2
+    saver.create_plots_experiment_2(all_data)
 
 
 def main():
-    dataset = "texas"
-    config = Config(nameTest= dataset + " test",
+    dataset = "healthcare"
+    config = Config(experimentName="tmp",
+           nameTest= dataset + " test",
            model="normal",
            dataset=dataset,
            lam=0.1, # 0.1 10
@@ -182,16 +294,16 @@ def main():
     
     X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDataBase(config.dataset, POSSIBLE_PATHS)()
     
-    log_distribution(logger, X_train, y_train, y_test)
-    target_model.fit(X_train, y_train, fName)
-    D_Train_Shadow, D_Out_Shadow, D_Test = split_shadow((X_shadow, y_shadow))
-    shadow_model.fit(D_Train_Shadow[0], D_Train_Shadow[1], fName)
+    # log_distribution(logger, X_train, y_train, y_test)
+    # target_model.fit(X_train, y_train, fName)
+    # D_Train_Shadow, D_Out_Shadow, D_Test = split_shadow((X_shadow, y_shadow))
+    # shadow_model.fit(D_Train_Shadow[0], D_Train_Shadow[1], fName)
 
-    z, labels = create_D_attack_centralised(shadow_model, D_Train_Shadow, D_Out_Shadow)
+    # z, labels = create_D_attack_centralised(shadow_model, D_Train_Shadow, D_Out_Shadow)
 
-    attack_model.fit(z, labels)
+    # attack_model.fit(z, labels)
 
-    save_metrics_one_run(target_model, shadow_model, attack_model, (X_train, y_train), (X_test, y_test), D_Train_Shadow, (z, labels), D_Test)
+    # save_metrics_one_run(target_model, shadow_model, attack_model, (X_train, y_train), (X_test, y_test), D_Train_Shadow, (z, labels), D_Test)
 
     X, y, y_pred_org, y_test, target_model, X_shadow, y_shadow, fName = test_global(config, logger, target_model, getDataBase(config.dataset, POSSIBLE_PATHS))
     

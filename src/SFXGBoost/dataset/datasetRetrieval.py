@@ -132,29 +132,37 @@ def getCensus(paths):
 def getDNA(paths):
     return
 
-def getHealthcare(paths): # https://www.kaggle.com/datasets/nehaprabhavalkar/av-healthcare-analytics-ii
-    train_size = 100_000
-    test_size = 30_000
+def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/nehaprabhavalkar/av-healthcare-analytics-ii
+    """retireves the Healtcare dataset from kaggle https://www.kaggle.com/datasets/nehaprabhavalkar/av-healthcare-analytics-ii
+    general information:
+    nFeatures = 16 
+    nClasses = 11
+    nUsers = ~318k
+    I'm not using test_data.csv and sample_sub.cvs as there it is only testing the classification of 0-10 days y/n?
+
+    for a federated data retrieval 
+    Args:
+        paths (_type_): _description_
+        federated (bool, optional): _description_. Defaults to False.
+
+    Returns:
+        _type_: _description_
+    """
+    
+    train_size = 30_000
+    test_size = 10_000
     random_state = 420
-    shadow_size = 150_000
+    shadow_size = train_size*2
 
     def returnfunc():
         train = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data", paths)
         test = check_mul_paths_csv("AV_HealthcareAnalyticsII/test_data", paths)
         dict = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data_dictionary", paths)
         sample = check_mul_paths_csv("AV_HealthcareAnalyticsII/sample_sub", paths)
-        strings = ['Hospital_type_code', 'Hospital_region_code', 'Department', 'Ward_Type', 'Ward_Facility_Code', 'Type of Admission', 'Severity of Illness', 'Age', 'Stay']
+        non_continuous = ['Hospital_type_code', 'Hospital_region_code', 'Department', 'Ward_Type', 'Ward_Facility_Code', 'Type of Admission', 'Severity of Illness', 'Age', 'Stay']
         train = train.dropna()
 
-
-        # def complex_factorize(df, col):
-        #     ser = pd.Series(df[col].unique())
-        #     func = lambda x: sorted(x.values.ravel())
-        #     arr = np.hstack(ser.groupby(ser.str.len()).apply(func).values)
-        #     return pd.factorize(arr)
-        # val, ser = complex_factorize(train, 'Hospital_type_code')
-        # train.replace(ser, val)
-        for featureName in strings:
+        for featureName in non_continuous:
             train[featureName] = train[featureName].factorize()[0]
 
         # train[strings] = train[strings].apply(lambda x: pd.factorize(x)[0])
@@ -164,12 +172,20 @@ def getHealthcare(paths): # https://www.kaggle.com/datasets/nehaprabhavalkar/av-
         y = makeOneHot(y = train.values[:, 17].reshape(-1,1))
         X_train = X[:train_size]
         y_train = y[:train_size]
-        X_shadow = X[train_size:train_size+shadow_size]
-        y_shadow = y[train_size:train_size+shadow_size]
+        
         # X_test = test.values[:test_size, 1:]
         # y_test = sample.values[:test_size, 1]
-        X_test = X[train_size+shadow_size:train_size+shadow_size+test_size]
-        y_test = y[train_size+shadow_size:train_size+shadow_size+test_size]
+        X_test = X[train_size:train_size+test_size]
+        y_test = y[train_size:train_size+test_size]
+
+        if federated:
+            size = X.shape[0]
+            begin = train_size+test_size
+            X_shadow = [X[i:i+shadow_size] for i in range(begin, size-shadow_size, shadow_size)]
+            y_shadow = [y[i:i+shadow_size] for i in range(begin, size-shadow_size, shadow_size)]
+        else:
+            X_shadow = X[train_size+test_size:train_size+test_size+shadow_size]
+            y_shadow = y[train_size+test_size:train_size+test_size+shadow_size]
         return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
 
     # data = np.genfromtxt(paths + "AV_HealthcareAnalyticsII/train_data.csv")
@@ -180,18 +196,26 @@ POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
 # getHealthcare(POSSIBLE_PATHS)()
 
-def getDataBase(dataBaseName, paths):
+def getDataBase(dataBaseName, paths, federated=False):
     """After setting the database in the config, this will retrieve the database
     """
-    get_databasefunc = {'purchase-10': getPurchase(10, paths), 'purchase-20':getPurchase(20, paths), 
-                    'purchase-50':getPurchase(50, paths), 'purchase-100':getPurchase(100, paths), 
-                    'texas':getTexas(paths), 'healthcare':getHealthcare(paths), 'MNIST':getMNIST(paths), 'synthetic':getSynthetic(), 
-                    'Census':getCensus(paths), 'DNA':getDNA(paths)
+    get_databasefunc = {'purchase-10': getPurchase(10, paths, federated), 'purchase-20':getPurchase(20, paths, federated), 
+                    'purchase-50':getPurchase(50, paths, federated), 'purchase-100':getPurchase(100, paths, federated), 
+                    'texas':getTexas(paths, federated), 'healthcare':getHealthcare(paths, federated), 'MNIST':getMNIST(paths, federated), 'synthetic':getSynthetic(federated), 
+                    'Census':getCensus(paths, federated), 'DNA':getDNA(paths, federated)
                    }[dataBaseName]
     return get_databasefunc
 
 def getConfigParams(dataBaseName): # retreive n_classes, n_features
+    """shamefully hardcoded nClasses and nFeatures retriever. 
+    
 
+    Args:
+        dataBaseName (str): name of the datset
+
+    Returns:
+        tuple(int, int): tuple of (nClasses, nFeatures)
+    """
     get_databasefunc = {'purchase-10': (10, 600), # nClasses, nFeatures
                         'purchase-20': (20, 600), 
                         'purchase-50': (50, 600), 
