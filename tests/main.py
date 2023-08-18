@@ -138,7 +138,7 @@ def train_all_federated(target_model, shadow_models, attack_model, config:Config
     data = retrieve_data(target_model, shadow_model, attack_model, X_train, y_train, X_test, y_test, z_test, labels_test)
     return data
 
-def retrieve_data(target_model, shadow_model, attack_model, X_train, y_train, X_test, y_test, z_test, labels_test): # todo put this in SFXGBoost
+def retrieve_data(target_model, shadow_model, attack_model, X_train, y_train, X_test, y_test, z_test, labels_test): # TODO put this in SFXGBoost
     data = {}
     from sklearn.metrics import accuracy_score, precision_score
 
@@ -175,7 +175,13 @@ def retrieve_data(target_model, shadow_model, attack_model, X_train, y_train, X_
     data["precision test attack"] = prec_test_attack
     return data
 
-def create_attack_model_federated(config:Config):
+def create_attack_model_federated(config:Config, G, H):
+
+    nFeatures = len(G[0])
+    nTrees = len(G)
+    max_depth = config.max_depth
+    max_tree = config.max_tree
+
     import torch.nn as nn
     class CNN(nn.Module):
         def __init__(self, *args, **kwargs) -> None:
