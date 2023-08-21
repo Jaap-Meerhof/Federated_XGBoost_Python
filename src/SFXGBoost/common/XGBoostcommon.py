@@ -14,7 +14,7 @@ def ThresholdL1(g, alpha):
         return 0.0
     
 # L = lambda G,H, GL, GR, HL, HR, lamb, gamma: 1/2 * ((ThresholdL1(GL*GL) / (HL + lamb)) + (ThresholdL1(GR*GR) / (HR + lamb)) - (ThresholdL1(G*G) / (H + lamb))) - gamma
-L = lambda G,H, GL, GR, HL, HR, lamb, alpha: ((ThresholdL1(GL*GL, alpha) / (HL + lamb)) + (ThresholdL1(GR*GR, alpha) / (HR + lamb)) - (ThresholdL1(G*G, alpha) / (H + lamb)))
+L = lambda G,H, GL, GR, HL, HR, lamb, alpha, gamma: ((ThresholdL1(GL*GL, alpha) / (HL + lamb)) + (ThresholdL1(GR*GR, alpha) / (HR + lamb)) - (ThresholdL1(G*G, alpha) / (H + lamb))) - gamma
 
 # L = lambda G,H, GL, GR, HL, HR, lamb, gamma, alpha: 1/2 * (ThresholdL1(GL, alpha) / (HL + lamb)) + (GR*GR / (HR + lamb)) - (G*G / (H + lamb))) - gamma
 
@@ -30,11 +30,12 @@ class XgboostLearningParam():
     LOSS_FUNC = None
     LOSS_TERMINATE = None
     LAMBDA = None
+    ALPHA=None
     GAMMA = None
     N_TREES = None
     MAX_DEPTH = None
 
-def compute_splitting_score_quantile(splits, GVec, HVec, lamb, gamma):
+def compute_splitting_score_quantile(splits, GVec, HVec, lamb, alpha, gamma):
     # instances = (nFeature, depends) True if still applicalbe, False if not relevant for this node
     def inhomogenioussum(mylist):
         sum = 0
@@ -60,7 +61,7 @@ def compute_splitting_score_quantile(splits, GVec, HVec, lamb, gamma):
             Hl += HVec[k][v]
             Gr = G-Gl
             Hr = H-Hl
-            score = L(G, H, Gl, Gr, Hl, Hr, lamb, gamma)
+            score = L(G, H, Gl, Gr, Hl, Hr, lamb, alpha, gamma)
             if score > maxscore:
                 value = splits[k][v]  # nogiets linker split value s_{k,v}
                 feature = k
@@ -98,7 +99,7 @@ def weights_to_probas(y_pred):
 
 
 
-def compute_splitting_score(SM, GVec, HVec, lamb, gamma):
+def compute_splitting_score(SM, GVec, HVec, lamb, alpha, gamma):
     G = sum(GVec)
     H = sum(HVec)
     print(f"SM: {np.shape(SM)}")
@@ -108,14 +109,14 @@ def compute_splitting_score(SM, GVec, HVec, lamb, gamma):
     HRVec = np.matmul(SM, HVec)
     GLVec = G - GRVec
     HLVec = H - HRVec
-    score = L(G,H,GLVec,GRVec,HLVec,HRVec,lamb, gamma)
+    score = L(G,H,GLVec,GRVec,HLVec,HRVec, lamb, alpha, gamma)
 
     bestSplitId = np.argmax(score)
     maxScore = score[bestSplitId]
     return score.reshape(-1), maxScore, bestSplitId
 
-def get_splitting_score(G, H, GL, GR, HL, HR, lamb = XgboostLearningParam.LAMBDA, gamma = XgboostLearningParam.GAMMA):
-    score = L(G,H,GL,GR,HL,HR,lamb, gamma)
+def get_splitting_score(G, H, GL, GR, HL, HR, lamb = XgboostLearningParam.LAMBDA, alpha=XgboostLearningParam.ALPHA, gamma = XgboostLearningParam.GAMMA):
+    score = L(G,H,GL,GR,HL,HR,lamb, alpha, gamma)
     return score.reshape(-1)
  
 

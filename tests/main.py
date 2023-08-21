@@ -12,6 +12,7 @@ import xgboost as xgb
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neural_network import MLPClassifier
 import torch
+import sys
 
 def log_distribution(logger, X_train, y_train, y_test):
     nTrain = len(y_train)
@@ -224,14 +225,14 @@ def experiment2():
     for targetArchitecture in targetArchitectures:
         all_data[targetArchitecture] = {}
         for dataset in datasets:
-            config = Config(experimentName= "experiment 2",
+            config = Config(experimentName = "experiment 2",
             nameTest= dataset + " test",
             model="normal",
             dataset=dataset,
             lam=0.1, # 0.1 10
             gamma=0.5,
             alpha=0.0,
-            learning_rate=1,
+            learning_rate=0.3,
             max_depth=5,
             max_tree=9,
             nBuckets=100)
@@ -268,17 +269,20 @@ def experiment2():
 
 
 def main():
-    dataset = "healthcare"
+    if len(sys.argv) < 2:
+        print("Usage: python main.py <exeperiment number>")
+    # experimentNumber = int(sys.argv[1])
+    dataset = "texas"
     config = Config(experimentName="tmp",
-           nameTest= dataset + " test",
+           nameTest= dataset + "0.3 20 trees",
            model="normal",
            dataset=dataset,
            lam=0.1, # 0.1 10
            gamma=0.5,
            alpha=0.0,
-           learning_rate=1,
-           max_depth=5,
-           max_tree=9,
+           learning_rate=0.3,
+           max_depth=8,
+           max_tree=20,
            nBuckets=100)
     logger = MyLogger(config).logger
     if rank ==0 : logger.debug(config.prettyprint())
@@ -298,7 +302,7 @@ def main():
     # that way I can save the model reuse it and apply different attack_models on it.
     # TODO SFXGBoost().getGradients.
     
-    X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDataBase(config.dataset, POSSIBLE_PATHS)()
+    # X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDataBase(config.dataset, POSSIBLE_PATHS)()
     
     # log_distribution(logger, X_train, y_train, y_test)
     # target_model.fit(X_train, y_train, fName)
@@ -313,13 +317,11 @@ def main():
 
     X, y, y_pred_org, y_test, target_model, X_shadow, y_shadow, fName = test_global(config, logger, target_model, getDataBase(config.dataset, POSSIBLE_PATHS))
     
-    preform_attack_centralised(config, (X_shadow, y_shadow), target_model, shadow_model, attack_model, X, y, fName)
+    preform_attack_centralised(config, logger, (X_shadow, y_shadow), target_model, shadow_model, attack_model, X, y, fName)
 
     if rank == 0:
         from sklearn.metrics import accuracy_score
         print(f"y_test = {np.argmax(y_test, axis=1)}")
         print(f"y_pred_org = {y_pred_org}")
-        
         print(f"Accuracy federboost = {accuracy_score(np.argmax(y_test, axis=1), y_pred_org)}")
-
 main()

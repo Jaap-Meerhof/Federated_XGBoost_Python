@@ -160,7 +160,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                 for c in range(self.config.nClasses):
                     FLVisNode(self.logger, self.trees[c][t].root).display(t)
                 update_pred = np.array([tree.predict(orgData) for tree in self.trees[:, t]]).T
-                y_pred += update_pred * self.config.learning_rate
+                y_pred += update_pred #* self.config.learning_rate
     
     def quantile_lookup(self):
         """The different participants will run this algorithm to find the quantile splits.
@@ -178,13 +178,15 @@ class SFXGBoost(SFXGBoostClassifierBase):
         other_users = [i for i in range(1, l) if i != rank]
         for featureid in range(self.config.nFeatures):
             features_i = deepcopy(X.featureDict[list(X.featureDict.keys())[featureid]])
+            if len(np.unique(features_i)) < q:
+                continue # not a continues feature to complete quantile_lookup.
             for j in range(1, q-1):
                 Qj = None
                 if isPl:
                     Qmin = np.min(features_i)
                     Qmax = np.max(features_i)
                 nPrime = 0
-                while np.abs(nPrime - (n/q)) > 0:
+                while np.abs(nPrime - (n/q)) > 0: # TODO catch loop
                     if isPl:
                         Qj = (Qmin + Qmax) / 2
                         for i in other_users:
@@ -237,7 +239,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     Hl += hessian[k][v]
                     Gr = G-Gl
                     Hr = H-Hl
-                    score = L(G, H, Gl, Gr, Hl, Hr, self.config.lam, self.config.alpha)
+                    score = L(G, H, Gl, Gr, Hl, Hr, self.config.lam, self.config.alpha, self.config.gamma)
                     if score > maxScore and Hl > 1 and Hr > 1: # TODO 1 = min_child_weight
                         value = splits[k][v]
                         feature = k
@@ -379,7 +381,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     b = FLVisNode(self.logger, tree.root)
                     b.display(treeID)
                     update_pred = tree.predict(testDataBase)
-                    y_pred[:, c] += update_pred * self.config.learning_rate
+                    y_pred[:, c] += update_pred #* self.config.learning_rate
             return y_pred
 
              

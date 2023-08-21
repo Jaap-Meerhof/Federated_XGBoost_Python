@@ -37,7 +37,7 @@ def makeOneHot(y):
     y = encoder.transform(y).toarray()
     return y
 
-def getPurchase(num, paths):
+def getPurchase(num, paths, federated=False):
     #first try local
     # 
     # logger.warning(f"getting purchase {num} dataset!")
@@ -68,7 +68,7 @@ def getPurchase(num, paths):
         
     return returnfunc
 
-def getTexas(paths):
+def getTexas(paths, federated=False):
     def returnfunc():
         # logger.warning("getting Texas database!")
         train_size = 50_000
@@ -76,9 +76,10 @@ def getTexas(paths):
         random_state = 69
         shadow_size = 30_000    
 
-        X = check_mul_paths('texas/' + 'texas_100_v2_features.p', paths)
+        X = check_mul_paths('texas/' + 'texas_100_v2_features_2006.p', paths)
         X = np.array(X)
-        y = check_mul_paths('texas/' + 'texas_100_v2_labels.p', paths)
+        shape = np.shape(X) # 2516991, 11 2006 = 925128, 11
+        y = check_mul_paths('texas/' + 'texas_100_v2_labels_2006.p', paths) 
         # fName = check_mul_paths('texas/' + 'texas_100_v2_feature_desc.p', paths)
         fName = ['THCIC_ID', 'SEX_CODE', 'TYPE_OF_ADMISSION', 'SOURCE_OF_ADMISSION', \
              'LENGTH_OF_STAY', 'PAT_AGE', 'PAT_STATUS', 'RACE', 'ETHNICITY', \
@@ -98,12 +99,13 @@ def getTexas(paths):
 POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
-# getTexas(POSSIBLE_PATHS)
+# X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getTexas(POSSIBLE_PATHS)()
 
-def getMNIST(paths):
+
+def getMNIST(paths, federated=False):
     return
 
-def getSynthetic():
+def getSynthetic(federated=False):
     train_size = 50_000
     test_size = 30_000
     random_state = 420
@@ -126,11 +128,13 @@ def getSynthetic():
         return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
     return returnfunc
 
-def getCensus(paths):
+def getCensus(paths, federated=False): # binary issue
     return
 
-def getDNA(paths):
+def getDNA(paths, federated=False):
     return
+
+
 
 def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/nehaprabhavalkar/av-healthcare-analytics-ii
     """retireves the Healtcare dataset from kaggle https://www.kaggle.com/datasets/nehaprabhavalkar/av-healthcare-analytics-ii

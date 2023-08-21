@@ -1,3 +1,4 @@
+from logging import Logger
 from SFXGBoost.config import Config, MyLogger
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score
@@ -58,11 +59,11 @@ def create_D_attack_centralised(shadow_model_s, D_Train_Shadow, D_Out_Shadow):
     # Shadow_model_s can be multiple shadow_models! TODO deal with that!
     x, labels = f_random(D_Train_Shadow, D_Out_Shadow)
     z = shadow_model_s.predict_proba(x)
-    z_top_indices = np.argsort(z)[::-1][:3] # take top 3 sorted by probability
-    z = np.take(z, z_top_indices) # take top 3
+    # z_top_indices = np.argsort(z)[::-1][:3] # take top 3 sorted by probability
+    # z = np.take(z, z_top_indices) # take top 3
     return z, labels
 
-def preform_attack_centralised(config:Config, D_Shadow, target_model, shadow_model, attack_model, X, y, fName=None) -> np.ndarray:
+def preform_attack_centralised(config:Config, logger:Logger, D_Shadow, target_model, shadow_model, attack_model, X, y, fName=None) -> np.ndarray:
     """_summary_
 
     Args:
@@ -91,10 +92,15 @@ def preform_attack_centralised(config:Config, D_Shadow, target_model, shadow_mod
     
     y_pred = attack_model.predict(target_model.predict_proba(test_x))
     Metric_attack_acc = accuracy_score(test_label, y_pred)
+    logger.warning(f"DEBUG: accuracy attack: {Metric_attack_acc}")
     print(f"DEBUG: accuracy attack: {Metric_attack_acc}")
     Metric_attack_precision = precision_score(test_label, y_pred)
     print(f"DEBUG: precision attack: {Metric_attack_precision}")
+    logger.warning(f"DEBUG: precision attack: {Metric_attack_precision}")
     print(f"DEBUG: {y_pred}")
+    logger.warning("DEBUG: y_pred = {y_pred}")
+    logger.warning(f"DEBUG: f(x) target = {target_model.predict_proba(test_x)}")
+
 
 
 
