@@ -7,23 +7,25 @@ from sklearn.model_selection import train_test_split
 
 def split_shadow(D_Shadow):
     """Splits the shadow_dataset such that it can be used for training with D_Train_Shadow and D_Out_Shadow. 
-    D_Test is for testing how well the shadow model performs
 
     Args:
         D_Shadow Tuple(nd.array): a Tuple with two arrays for X and y. y is One Hot encoded. 
 
     Returns:
-        Tuple(nd.array), Tuple(ndarray), Tuple(ndarray): D_Train_Shadow, D_Out_Shadow, D_Test
+        Tuple(nd.array), Tuple(ndarray): D_Train_Shadow, D_Out_Shadow
     """
     X = D_Shadow[0]
     y = D_Shadow[1]
 
-    split = len(X[:, 0]) // 3 # find what one third of the users are
+    split = len(X[:, 0]) // 2 # find what one third of the users are
     D_Train_Shadow = (X[:split, :], y[:split, :])
-    D_Out_Shadow = (X[split:2*split, :], y[split:2*split, :])
-    D_Test = (X[split*2:, :], y[split*2:, :])
+    D_Out_Shadow = (X[split:, :], y[split:, :])
 
-    return D_Train_Shadow, D_Out_Shadow, D_Test
+    return D_Train_Shadow, D_Out_Shadow
+
+def federated_split(D_Shadow):
+    num_shadows = len(D_Shadow)
+    D_Shadow[0:num_shadows-1], D_Shadow[num_shadows]
 
 def f_random(D_Train_Shadow, D_Out_Shadow):
     """splits D_Train_Shadow and D_Out_Shadow such that they can be used for training the attack model.
@@ -63,21 +65,46 @@ def create_D_attack_centralised(shadow_model_s, D_Train_Shadow, D_Out_Shadow):
     # z = np.take(z, z_top_indices) # take top 3
     return z, labels
 
-def preform_attack_centralised(config:Config, logger:Logger, D_Shadow, target_model, shadow_model, attack_model, X, y, fName=None) -> np.ndarray:
-    """_summary_
+def create_D_attack_federated(D_Train_Shadow, D_Out_Shadow, X_train, X_test, G_shadows, H_shadows, shadow_models, target_model):
+    """creates the attack dataset to train and test for the federated attack
+
+    Args:
+        D_Train_Shadow (_type_): _description_
+        D_Out_Shadow (_type_): _description_
+        X_train (_type_): _description_
+        X_test (_type_): _description_
+        G_shadows (_type_): _description_
+        H_shadows (_type_): _description_
+        shadow_models (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    # D_train_attack should be D_train_shadow label = 1, D_Out_Shadow = 0
+    for i in range(len(D_Train_Shadow)):
+        x, labels = f_random(D_Train_Shadow[i], D_Out_Shadow)
+        z = shadow_models[i].predict_proba(x)
+        for depth in maxDepth:
+            G = G_shadows[depth][i]
+            H = H_shadows[depth][i]
+    target_model.re
+    return D_train_Attack, D_test_Attack
+
+def preform_attack_centralised(config:Config, logger:Logger, D_Shadow, target_model, shadow_model, attack_model, X, y, X_test, y_test, fName=None) -> np.ndarray:
+    """ Depricated, tmp
 
     Args:
         config (Config, D_Shadow, target_model, shadow_model, attack_model, X, y, fName, optional): _description_. Defaults to None)->np.array(.
     """
-    D_Train_Shadow, D_Out_Shadow, D_Test = split_shadow(D_Shadow)
+    D_Train_Shadow, D_Out_Shadow = split_shadow(D_Shadow)
     
     y_pred=None
     if type(shadow_model) != SFXGBoost:
-        y_pred = shadow_model.fit(D_Train_Shadow[0], np.argmax(D_Train_Shadow[1], axis=1)).predict(D_Test[0])
+        y_pred = shadow_model.fit(D_Train_Shadow[0], np.argmax(D_Train_Shadow[1], axis=1)).predict(X_test)
     else:
-        y_pred = shadow_model.fit(D_Train_Shadow[0], D_Train_Shadow[1], fName).predict(D_Test[0])
+        y_pred = shadow_model.fit(D_Train_Shadow[0], D_Train_Shadow[1], fName).predict(X_test)
     
-    Metric_shadow_acc = accuracy_score(np.argmax(D_Test[1], axis=1), y_pred)
+    Metric_shadow_acc = accuracy_score(np.argmax(y_test, axis=1), y_pred)
     del y_pred
     
     x, label = f_random(D_Train_Shadow, D_Out_Shadow)
@@ -85,7 +112,7 @@ def preform_attack_centralised(config:Config, logger:Logger, D_Shadow, target_mo
     X_train, X_test, label_train, label_test = train_test_split(x, label, test_size=0.2, random_state=12)
     z_train = shadow_model.predict_proba(X_train)
     z_test = target_model.predict_proba(X) # todo test data outside
-    test_x, test_label = f_random((X,y), D_Test)
+    test_x, test_label = f_random((X,y), (X_test, y_test))
     
     
     attack_model.fit(z_train, label_train)

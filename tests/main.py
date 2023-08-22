@@ -1,7 +1,7 @@
 from SFXGBoost.config import Config, rank, comm, MyLogger
 from SFXGBoost.Model import PARTY_ID, SFXGBoostClassifierBase, SFXGBoost
 from SFXGBoost.data_structure.databasestructure import QuantiledDataBase, DataBase
-from SFXGBoost.MemberShip import preform_attack_centralised, split_shadow, create_D_attack_centralised
+from SFXGBoost.MemberShip import preform_attack_centralised, split_shadow, create_D_attack_centralised, create_D_attack_federated
 from SFXGBoost.common.pickler import *
 import SFXGBoost.view.metric_save as saver
 from SFXGBoost.dataset.datasetRetrieval import getDataBase
@@ -12,7 +12,11 @@ import xgboost as xgb
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neural_network import MLPClassifier
 import torch
+from torch.autograd import Variable
+from torch.utils.data import DataLoader, TensorDataset
+import torch.nn as nn
 import sys
+
 
 def log_distribution(logger, X_train, y_train, y_test):
     nTrain = len(y_train)
@@ -83,7 +87,7 @@ def test_global(config:Config, logger:Logger, model: SFXGBoostClassifierBase, ge
     # model = xgboostmodel
     # TODO make it such that model.fit gets used instead. its more clear and easy! 
     
-    return X, y, y_pred_org, y_test, model, X_shadow, y_shadow, fName
+    return X, y, X_test, y_test, y_pred_org, model, X_shadow, y_shadow, fName
 
 dataset_list = ['purchase-10', 'purchase-20', 'purchase-50', 'purchase-100', 'texas', 'healthcare', 'MNIST', 'synthetic', 'Census', 'DNA']
 POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
@@ -104,13 +108,13 @@ def get_data_attack_centrally(target_model, shadow_model, attack_model, config, 
     data = retrieve_data(target_model, shadow_model, attack_model, X_train, y_train, X_test, y_test, z_test, labels_test)
     return data
 
-def train_all_federated(target_model, shadow_models, attack_model, config:Config, logger:MyLogger) -> dict:
+def train_all_federated(target_model, shadow_models, attack_models, config:Config, logger:MyLogger) -> dict:
     """Trains for a federated attack given the target_model, shadow_model(s), attack_model, config, logger
 
     Args:
         target_model (any): must support .fit() & .predict().or must be SFXGBoost.
         shadow_models (any): must support .fit() & .predict().or must be SFXGBoost.
-        attack_model (any): must support .fit() & .predict().or must be SFXGBoost
+        attack_models (any): must support .fit() & .predict().or must be SFXGBoost
         config (Config): config with experiment variables
         logger (MyLogger): logs the whole thing
 
@@ -122,15 +126,27 @@ def train_all_federated(target_model, shadow_models, attack_model, config:Config
 
     target_model.fit(X_train, y_train, fName)
 
+    G_shadows = []
+    H_shadows = []
+    D_Train_Shadow, D_Out_Shadow = split_shadow((X_shadow, y_shadow)) # TODO split shadow model to be same size as X_train
     for shadow_model in shadow_models:
-
-        D_Train_Shadow, D_Out_Shadow, D_Test = split_shadow((X_shadow, y_shadow))
+        
         shadow_model.fit(D_Train_Shadow[0], D_Train_Shadow[1], fName)
-        shadow_model.retrieve_differentials()  # TODO implement, this will retrieve the gradients & hessians for the attack model
+        G, H = shadow_model.retrieve_differentials()  # TODO implement, this will retrieve the gradients & hessians for the attack model
+        # G = [[depth 0 G's], [depth1 G's], ....]
+        G_shadows.append(G)
+        H_shadows.append(H)
     
-    attack_model = create_attack_model_federated()
+    attack_models = create_attack_model_federated() # returns a attack model for every level
+    # TODO create training data for attack models per depth
+    D_train_Attack, D_test_Attack = create_D_attack_federated(D_Train_Shadow, D_Out_Shadow, X_train, X_test, G_shadows, H_shadows, shadow_models, attack_model)
+    # TODO create test data for attack models! :)
+    for attack_model in attack_models:
+        attack_model.fit(z, labels)
+    
+    y_pred = predict_federated(attack_models, D_test_Attack)
 
-    attack_model.fit(z, labels)
+    labels_test = attack_model.predict(z_test)
 
     # create z_test and labels_test 
     # z test is the | X_train + differentials --> label 1
@@ -176,44 +192,77 @@ def retrieve_data(target_model, shadow_model, attack_model, X_train, y_train, X_
     data["precision test attack"] = prec_test_attack
     return data
 
-def create_attack_model_federated(config:Config, G, H):
+def create_attack_model_federated(config:Config, G:list, H:list) -> list:
+    """_summary_
 
+    Args:
+        config (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """    
     nFeatures = len(G[0])
     nTrees = len(G)
     max_depth = config.max_depth
     max_tree = config.max_tree
+    NBins = np.sum([len(gi) for gi in G[0] ]) # count the amount of bins found in the first tree's Gradients which will apply to all trees and H
+    Attack_Models = [None for _ in range(max_depth)]
 
-    import torch.nn as nn
-    class CNN(nn.Module):
-        def __init__(self, *args, **kwargs) -> None:
-            super().__init__(CNN, **kwargs).__init__()
-            
-            self.linear1 = nn.Linear()
-            self.linear2 = nn.Linear()
-            self.softmax = nn.Softmax()
+    class DepthNN(nn.Module):
+        def __init__(self, input_Features, *args, **kwargs) -> None:
+            super().__init__(DepthNN, **kwargs).__init__()
 
-            self.differential_cov = [nn.Conv2d(stride=1) for depth in range(config.max_depth)] # TODO determine what the convolution should look like
-            self.dropout = nn.Dropout(p=0.2)
-            self.differential_lin2 = [nn.Linear() for depth in range(config.max_depth)]
-            self.f = nn.Sequential(
-                nn.Linear(100, 100), # TODO 
+            self.model = nn.Sequential(
+                nn.Linear(input_Features, input_Features), # TODO 
                 nn.ReLU(),
-                nn.Dropout(p=0.2)
+                nn.Dropout(p=0.2), 
+                nn.Linear(input_Features, 2),
+                nn.Softmax(dim=1)
             )
 
         def forward(self, x): 
             # TODO add correcty data input
-            return self.f(x)
+            return self.model(x)
         
-        def fit(self, x, y, num_epochs, lr):
-            criterion = nn.MSELoss
+        def fit(self, X, y, num_epochs, lr, batch_size=1):
+            # criterion = nn.CrossEntropyLoss()
+            criterion = nn.BCELoss()  # Binary Cross Entropy 
             optimizer = torch.optim.Adam(self.parameters(), lr=lr)
-
-            for epoch in range(num_epochs):
-                pass
-
-    return CNN # returns the class
-
+            train_data = DataLoader(TensorDataset(X, y), batch_size, shuffle=True)
+            self.train()
+            epoch_loss = 0.0
+            for epoch in range(num_epochs): # total pass through data
+                for i, data in enumerate(train_data):
+                    X_batch = Variable(data[0])
+                    y_batch = Variable(data[1])    
+                    optimizer.zero_grad()
+                    outputs = self.forward(X_batch)
+                    loss = criterion(outputs, y_batch)
+                    loss.backward()
+                    optimizer.step()
+                    
+                    epoch_loss += loss.data[0]
+                    # float(epoch_loss) / (i+1)
+            
+        def predict(self, X, batchsize=1): # https://github.com/henryre/pytorch-fitmodule/blob/master/pytorch_fitmodule/fit_module.py
+            self.eval()
+            data = DataLoader(TensorDataset(X, torch.Tensor(X.size()[0])), batch_size=1, shuffle=False)
+            r, n = 0, X.size()[0]
+            for batch_data in data:
+                X_batch = Variable(batch_data)
+                y_batch_pred = self(X_batch).data
+                if r == 0:
+                    y_pred = torch.zeros((n, ) + y_batch_pred.size()[1:])
+                y_pred[r : min(n, r + batchsize)] = y_batch_pred
+                r+= batchsize
+            return y_pred
+    
+    
+    for l in range(max_depth):
+        nInputs = nFeatures + nFeatures + (3 * l) + NBins + NBins  # x + f(x) + (min(s0) + max(s0) + f0 * l) + G + H
+        Attack_Models[l] = DepthNN(nInputs)
+        # TODO create one nn per depth
+    return Attack_Models
 
 def experiment2():
     seed = 10
@@ -272,9 +321,9 @@ def main():
     if len(sys.argv) < 2:
         print("Usage: python main.py <exeperiment number>")
     # experimentNumber = int(sys.argv[1])
-    dataset = "texas"
+    dataset = "healthcare"
     config = Config(experimentName="tmp",
-           nameTest= dataset + "0.3 20 trees",
+           nameTest= dataset + "klein 20 trees",
            model="normal",
            dataset=dataset,
            lam=0.1, # 0.1 10
@@ -315,9 +364,9 @@ def main():
 
     # save_metrics_one_run(target_model, shadow_model, attack_model, (X_train, y_train), (X_test, y_test), D_Train_Shadow, (z, labels), D_Test)
 
-    X, y, y_pred_org, y_test, target_model, X_shadow, y_shadow, fName = test_global(config, logger, target_model, getDataBase(config.dataset, POSSIBLE_PATHS))
+    X, y, X_test, y_test, y_pred_org, target_model, X_shadow, y_shadow, fName = test_global(config, logger, target_model, getDataBase(config.dataset, POSSIBLE_PATHS))
     
-    preform_attack_centralised(config, logger, (X_shadow, y_shadow), target_model, shadow_model, attack_model, X, y, fName)
+    preform_attack_centralised(config, logger, (X_shadow, y_shadow), target_model, shadow_model, attack_model, X, y, X_test, y_test, fName)
 
     if rank == 0:
         from sklearn.metrics import accuracy_score

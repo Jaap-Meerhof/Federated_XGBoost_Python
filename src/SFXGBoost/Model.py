@@ -38,11 +38,17 @@ class SFXGBoostClassifierBase:
                     assert type(tree) == SFXGBoostTree
                     tree.setInstances(nUsers, np.full((nUsers, ), True)) # sets all root nodes to have all instances set to True
         
-        
-        
-            
+    def retrieve_differentials(self):
+        """retrieves the G, H over the trees
+        [G_tree1, G_tree2]
+        where G_treei = [[root], [depth1, depth1], [depth2,..],...]
+        H is done in the same fashion
 
-
+        Returns:
+            _type_: _description_
+        """
+        # self.trees take the gradients and hessians from all 
+        return 
 
 class SFXGBoost(SFXGBoostClassifierBase):
     def __init__(self, config:Config, logger:Logger) -> None:
@@ -89,6 +95,10 @@ class SFXGBoost(SFXGBoostClassifierBase):
                                 else:
                                     G[c][i] += Gpi[c][i]
                                     H[c][i] += Hpi[c][i]
+                            # TODO save Gpi & Hpi for personalised attack
+                            self.trees[c][t].gradients[l] = G[c] # keep track aggregated gradients
+                            self.trees[c][t].hessians[l] = H[c] # keep track aggregated hessians
+
                     splittingInfos = [[] for _ in range(self.config.nClasses)] 
                     # print("got gradients")
                     for c in range(self.config.nClasses):
@@ -391,6 +401,8 @@ class SFXGBoostTree:
         self.id = id
         self.root = FLTreeNode()
         self.nNode = 0
+        self.G = [[] for _ in range(max_depth)]
+        self.H = [[] for _ in range(max_depth)]
         
     def setInstances(self, nUsers, instances):
         self.root.nUsers = nUsers

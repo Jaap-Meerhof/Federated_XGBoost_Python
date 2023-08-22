@@ -74,7 +74,7 @@ def getTexas(paths, federated=False):
         train_size = 50_000
         test_size = 30_000
         random_state = 69
-        shadow_size = 30_000    
+        shadow_size = train_size*2 # is devided in two for in/out dataset. Federated * shadow_models
 
         X = check_mul_paths('texas/' + 'texas_100_v2_features_2006.p', paths)
         X = np.array(X)
@@ -109,7 +109,7 @@ def getSynthetic(federated=False):
     train_size = 50_000
     test_size = 30_000
     random_state = 420
-    shadow_size = 30_000    
+    shadow_size = train_size*2    
     
     def returnfunc():
         """returns ndarrays with all X types and y where y is One Hot encoded
@@ -153,9 +153,11 @@ def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/neh
         _type_: _description_
     """
     
-    train_size = 30_000
-    test_size = 10_000
+    train_size = 1_000
+    test_size = 1_000
     random_state = 420
+    if federated:
+        shadow_size = train_size * 5 + test_size 
     shadow_size = train_size*2
 
     def returnfunc():
