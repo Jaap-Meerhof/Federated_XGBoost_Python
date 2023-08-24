@@ -2,12 +2,13 @@
 import numpy as np
 from SFXGBoost.common.XGBoostcommon import ThresholdL1
 class SplittingInfo:
-    def __init__(self, bestSplitScore = -np.Infinity, featureName=None, splitValue=0.0, weight = None, nodeScore = None) -> None:
+    def __init__(self, bestSplitScore = -np.Infinity, featurId = None, featureName=None, splitValue=0.0, weight = None, nodeScore = None) -> None:
         self.bestSplitScore = bestSplitScore
         self.bestSplitParty = None
         self.selectedFeatureID = 0
         self.selectedCandidate = 0
         # self.instances = []
+        self.featureId = featurId
         self.featureName = featureName
         self.splitValue = splitValue
         
@@ -72,14 +73,36 @@ class TreeNode:
 
 
 class FLTreeNode(TreeNode):
-    def __init__(self, FID = 0, weight=0, leftBranch=None, rightBranch=None, ownerID = -1, instances=None):
+    def __init__(self, FID = 0, weight=0, parent=None, leftBranch=None, rightBranch=None, ownerID = -1, instances=None):
         super().__init__(weight, leftBranch, rightBranch)
         self.FID = FID
         self.owner = ownerID
         self.splittingInfo = SplittingInfo()
         self.score = None
+        self.parent = parent
         self.instances = instances
+        self.G = None
+        self.H = None
+        self.Gpi = None
+        self.Hpi = None
 
+    def get_nodes_depth(self, l, cur_l=0):
+        ret = []
+        if l == 0:
+            return self.root
+        else:
+            for child in [self.leftBranch, self.rightBranch]:
+                if child == None:
+                    continue
+                if cur_l+1 == l:
+                    ret.append(child)
+                else:
+                    nodes = child.get_nodes_depth(l, cur_l+1)
+                    if nodes == []:
+                        continue
+                    else:
+                        ret.append(nodes)
+        return ret
 
     def get_private_info(self):
         return "\nOwner ID:{}".format(self.owner)

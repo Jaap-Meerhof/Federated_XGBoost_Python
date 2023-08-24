@@ -3,8 +3,9 @@ from SFXGBoost.config import Config, MyLogger
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score
 from SFXGBoost.Model import SFXGBoost
+from SFXGBoost.data_structure.treestructure import FLTreeNode
 from sklearn.model_selection import train_test_split
-
+from SFXGBoost.common import flatten_list
 def split_shadow(D_Shadow):
     """Splits the shadow_dataset such that it can be used for training with D_Train_Shadow and D_Out_Shadow. 
 
@@ -65,7 +66,7 @@ def create_D_attack_centralised(shadow_model_s, D_Train_Shadow, D_Out_Shadow):
     # z = np.take(z, z_top_indices) # take top 3
     return z, labels
 
-def create_D_attack_federated(D_Train_Shadow, D_Out_Shadow, X_train, X_test, G_shadows, H_shadows, shadow_models, target_model):
+def create_D_attack_federated(config: Config, D_Train_Shadow, X_train, X_test, shadow_models, target_model):
     """creates the attack dataset to train and test for the federated attack
 
     Args:
@@ -81,14 +82,59 @@ def create_D_attack_federated(D_Train_Shadow, D_Out_Shadow, X_train, X_test, G_s
         _type_: _description_
     """
     # D_train_attack should be D_train_shadow label = 1, D_Out_Shadow = 0
-    for i in range(len(D_Train_Shadow)):
-        x, labels = f_random(D_Train_Shadow[i], D_Out_Shadow)
+    # I first need to combine the shadowmodel's data, then add the relevant split information to that attack model
+    D_Train_Attack = [ [[] for _ in config.max_depth] for _ in config.nClasses] # c, l empty lists
+    D_Test_Attack = [ [[] for _ in config.max_depth] for _ in config.nClasses] # c, l empty lists
+    for i in range(len(D_Train_Shadow)): # or every shadow model
+        shadow_model = shadow_models[i]
+        x, labels_train = f_random(D_Train_Shadow[i], D_Train_Shadow[i+1]) # TODO +1 is gonna cause an issue
         z = shadow_models[i].predict_proba(x)
-        for depth in maxDepth:
-            G = G_shadows[depth][i]
-            H = H_shadows[depth][i]
-    target_model.re
-    return D_train_Attack, D_test_Attack
+        
+        for c in config.nClasses:
+            for t in config.max_tree:
+                for l in config.max_depth:
+                    nodes = shadow_model.trees[c][t].root.get_nodes_depth(l)
+                    for node in nodes:
+                        splittinginfo = []
+                        parent:FLTreeNode = node.parent
+                        while parent != None:
+                            id = parent.splittingInfo.featureId
+                            splitvalue = parent.splittinginfo.splitValue
+                            splittinginfo.append(id)
+                            splittinginfo.append(splitvalue)
+                            if parent.leftBranch == node:
+                                pass  # smaller equal <=
+                                splittinginfo.append(0)
+                            elif parent.rightBranch == node:
+                                pass  # Greater > 
+                                splittinginfo.append(1)
+                            else:
+                                raise(Exception("??"))
+                            parent = parent.parent
+                        D_Train_Attack[c][l].append( flatten_list([x, z, splittinginfo , node.G, node.H]))
+    
+    x, labels_test = f_random((X_train, None), (X_test, None) )
+    z = target_model.predict_proba(x)
+    for c in config.nClasses:
+        for t in config.max_tree:
+            for l in config.max_depth:
+                nodes = target_model.trees[c][t].root.get_nodes_depth(l)
+                splittinginfo = []
+                parent:FLTreeNode = node.parent
+                while parent != None:
+                    splittinginfo.append(parent.splittingInfo.featureId)
+                    splittinginfo.append(parent.splittingInfo.splitValue)
+                    if parent.leftBranch == node:
+                        splittinginfo.append(0)
+                    elif parent.rightBranch == node:
+                        splittinginfo.append(1)
+                    else:
+                        raise(Exception("??"))
+                    parent = parent.parent
+                D_Test_Attack[c][l].append( flatten_list([x, z, splittinginfo , node.G, node.H]))
+    D_Train_Attack = (D_Train_Attack, labels_train)
+    D_Test_Attack = (D_Test_Attack, labels_test)
+    return D_Train_Attack, D_Test_Attack
 
 def preform_attack_centralised(config:Config, logger:Logger, D_Shadow, target_model, shadow_model, attack_model, X, y, X_test, y_test, fName=None) -> np.ndarray:
     """ Depricated, tmp

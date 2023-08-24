@@ -126,23 +126,18 @@ def train_all_federated(target_model, shadow_models, attack_models, config:Confi
 
     target_model.fit(X_train, y_train, fName)
 
-    G_shadows = []
-    H_shadows = []
-    D_Train_Shadow, D_Out_Shadow = split_shadow((X_shadow, y_shadow)) # TODO split shadow model to be same size as X_train
+    # D_Train_Shadow, D_Out_Shadow = split_shadow((X_shadow, y_shadow)) # TODO split shadow model to be same size as X_train
+    # TODO split shadow for federated such that there is a list for all. D_Out does not have to exist in federated
+    D_Train_Shadow = (X_shadow, y_shadow)
     for shadow_model in shadow_models:
-        
         shadow_model.fit(D_Train_Shadow[0], D_Train_Shadow[1], fName)
-        G, H = shadow_model.retrieve_differentials()  # TODO implement, this will retrieve the gradients & hessians for the attack model
-        # G = [[depth 0 G's], [depth1 G's], ....]
-        G_shadows.append(G)
-        H_shadows.append(H)
     
     attack_models = create_attack_model_federated() # returns a attack model for every level
     # TODO create training data for attack models per depth
-    D_train_Attack, D_test_Attack = create_D_attack_federated(D_Train_Shadow, D_Out_Shadow, X_train, X_test, G_shadows, H_shadows, shadow_models, attack_model)
+    D_train_Attack, D_test_Attack = create_D_attack_federated(config, D_Train_Shadow, X_train, X_test, shadow_models, attack_model)
     # TODO create test data for attack models! :)
-    for attack_model in attack_models:
-        attack_model.fit(z, labels)
+    for i,  attack_model in enumerate(attack_models):
+        attack_model.fit(D_train_Attack[i][0], D_train_Attack[i][1])
     
     y_pred = predict_federated(attack_models, D_test_Attack)
 
@@ -297,7 +292,7 @@ def experiment2():
                 all_data[targetArchitecture][dataset] = data
             elif targetArchitecture == "FederBoost-federated":
                 target_model = SFXGBoost(config, logger)
-                shadow_models = [SFXGBoost(config, logger) for _ in range(10)]  # 
+                shadow_models = [SFXGBoost(config, logger) for _ in range(10)]  # TODO create the amount of shadow models allowed given by datasetretrieval
                 attack_model= None  # TODO define federated neural network.
                 data = train_all_federated(target_model, shadow_models, attack_model, config, logger)
                 all_data[targetArchitecture][dataset] = data

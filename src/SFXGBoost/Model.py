@@ -252,7 +252,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     score = L(G, H, Gl, Gr, Hl, Hr, self.config.lam, self.config.alpha, self.config.gamma)
                     if score > maxScore and Hl > 1 and Hr > 1: # TODO 1 = min_child_weight
                         value = splits[k][v]
-                        feature = k
+                        featureId = k
                         featureName = self.fName[k]
                         maxScore = score
 
@@ -265,7 +265,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
         # assert all([np.sum(gradient[i]) == np.sum(gradient[i+1]) for i in range(0, len(gradient)-1)])
         weight, nodeScore = FLTreeNode.compute_leaf_param(gVec=gradient[0], hVec=hessian[0], lamb=self.config.lam, alpha=self.config.alpha) #TODO not done correctly should be done seperately!
         weight = self.config.learning_rate * weight
-        return SplittingInfo(bestSplitScore=maxScore, featureName=featureName, splitValue=value, weight=weight, nodeScore=nodeScore)
+        return SplittingInfo(bestSplitScore=maxScore, featurId=featureId, featureName=featureName, splitValue=value, weight=weight, nodeScore=nodeScore)
 
     def update_trees(self, last_level_nodes:List[List[FLTreeNode]], splits:List[List[SplittingInfo]], depth):
         new_nodes = [[] for _ in range(self.config.nClasses)]
@@ -274,8 +274,8 @@ class SFXGBoost(SFXGBoostClassifierBase):
                 splitInfo = splits[c][n]
                 if splitInfo.isValid and depth < self.config.max_depth:
                     node.splittingInfo = splitInfo
-                    node.leftBranch = FLTreeNode()
-                    node.rightBranch = FLTreeNode()
+                    node.leftBranch = FLTreeNode(parent=node)
+                    node.rightBranch = FLTreeNode(parent=node)
                     fName = splitInfo.featureName
                     sValue = splitInfo.splitValue
                     # print(self.original_data.featureDict.keys())
