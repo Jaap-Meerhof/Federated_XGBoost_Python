@@ -1,7 +1,7 @@
 from SFXGBoost.config import Config, rank, comm, MyLogger
 from SFXGBoost.Model import PARTY_ID, SFXGBoostClassifierBase, SFXGBoost
 from SFXGBoost.data_structure.databasestructure import QuantiledDataBase, DataBase
-from SFXGBoost.MemberShip import preform_attack_centralised, split_shadow, create_D_attack_centralised, create_D_attack_federated, predict_federated, get_input_attack2, DepthNN
+from SFXGBoost.MemberShip import preform_attack_centralised, split_shadow, create_D_attack_centralised, create_D_attack_federated, predict_federated, get_input_attack2, DepthNN, fitAttackmodel 
 from SFXGBoost.common.pickler import *
 import SFXGBoost.view.metric_save as saver
 from SFXGBoost.dataset.datasetRetrieval import getDataBase
@@ -145,14 +145,15 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
         # TODO create training data for attack models per depth
         logger.warning("creating D_attack")
         print("creating D_attack")
-        D_train_Attack, D_Train_Attack2, D_test_Attack = create_D_attack_federated(config, D_Train_Shadow, X_train, X_test, shadow_models, target_model)
+        # D_train_Attack, D_Train_Attack2, D_test_Attack = create_D_attack_federated(config, D_Train_Shadow, X_train, X_test, shadow_models, target_model)
         # TODO create test data for attack models! :)
         # for c in tqdm(range(config.nClasses), desc="> training attack models"):
         for c in range(config.nClasses):
                 print(f"training attack models for class {c} out of {config.nClasses}")
                 for l in range(config.max_depth):
-                    attack_models[c][l] = MLPClassifier(hidden_layer_sizes=(100,50,12), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
-                    attack_models[c][l].fit(D_train_Attack[0][c][l], D_train_Attack[1])
+                    # attack_models[c][l] = MLPClassifier(hidden_layer_sizes=(100,50,12), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
+                    fitAttackmodel(config, attack_models[c][l], shadow_models, c, l, D_Train_Shadow)
+                    # attack_models[c][l].fit(D_train_Attack[0][c][l], D_train_Attack[1])
                     # attack_models[c][l].fit(D_train_Attack[0][c][l], D_train_Attack[1], num_epochs=1000, lr=0.05)
         # after attack_models are done, train another model ontop of it.
         attack_model_2 = MLPClassifier(hidden_layer_sizes=(100,50,12), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)

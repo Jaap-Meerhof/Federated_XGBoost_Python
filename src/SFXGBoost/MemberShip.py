@@ -66,6 +66,50 @@ def create_D_attack_centralised(shadow_model_s, D_Train_Shadow, D_Out_Shadow):
     # z = np.take(z, z_top_indices) # take top 3
     return z, labels
 
+def fitAttackmodel(config, attack_model, shadow_models, c, l, D_Train_Shadow):
+    for i, shadow_model in enumerate(shadow_models):
+        D_Train_Attack = None  # c, l empty lists
+        # print(f"working on D_Train for shadow model {i} out of {len(D_Train_Shadow)}")
+        # shadow_model = shadow_model[i]
+        x, labels_train = f_random(D_Train_Shadow[i], D_Train_Shadow[(i+1) % len(D_Train_Shadow)])  #
+        y = []
+        z = shadow_model.predict_proba(x)
+        for t in range(config.max_tree):
+            nodes = shadow_model.trees[c][t].root.get_nodes_depth(l)
+            for node in nodes:
+                splittinginfo = []
+                parent:FLTreeNode = node.parent
+                curnode = node
+                i = 0
+                while parent != None:
+                    i += 1
+                    if i > 1000:
+                        raise(Exception("loop in parent?"))
+                    id = parent.splittingInfo.featureId
+                    splitvalue = parent.splittingInfo.splitValue
+                    splittinginfo.append(id)
+                    splittinginfo.append(splitvalue)
+                    if parent.leftBranch == curnode:
+                        pass  # smaller equal <=
+                        splittinginfo.append(0)
+                    elif parent.rightBranch == curnode:
+                        pass  # Greater > 
+                        splittinginfo.append(1)
+                    else:
+                        raise(Exception("??"))  # This actually caught a bug
+                    curnode = parent
+                    parent = parent.parent
+
+                flattened = flatten_list([splittinginfo , node.G, node.H])  # flatten the information
+                input = np.column_stack((x, z, np.tile(flattened, (x.shape[0] , 1))))  # copy the flattened information for every x, f(x)=z
+                y.extend(labels_train)
+                if not D_Train_Attack is None: 
+                    D_Train_Attack = np.vstack((D_Train_Attack, input))
+                else:
+                    D_Train_Attack = input
+    print(np.shape(D_Train_Attack))
+    return attack_model.fit(D_Train_Attack, np.array(y).reshape(-1, 1))
+
 def create_D_attack_federated(config: Config, D_Train_Shadow, X_train, X_test, shadow_models, target_model):
     """creates the attack dataset to train and test for the federated attack
 
@@ -279,10 +323,12 @@ class DepthNN(nn.Module):
             criterion = nn.BCELoss()  # Binary Cross Entropy 
             
             optimizer = torch.optim.Adam(self.parameters(), lr=lr)
-            for x in X:
+            # for x in X:
                 # print(x)
-                print(np.shape(np.array(x)))
+                # print(np.shape(np.array(x)))
 
+            print(np.shape(X))
+            print(np.shape(y))
             train_data = DataLoader(TensorDataset(np.array(X), np.array(y)), batch_size, shuffle=True)
             self.train()
             epoch_loss = 0.0
