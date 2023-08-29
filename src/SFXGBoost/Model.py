@@ -22,14 +22,16 @@ class SFXGBoostClassifierBase:
         self.trees: np.array(np.array(SFXGBoostTree)) = treeSet
         self.config = config
         self.logger = logger
-    
+        # self.fName = None
+        self.copied_quantiles = None  # if not none then call setQuantiles with copied_quantiles
+
     def setData(self, quantileDB:QuantiledDataBase=None, fName = None, original_data:DataBase=None, y=None):
         self.quantileDB = quantileDB
         self.original_data = original_data
         self.fName = fName
         self.nFeatures = len(fName)
         self.y = y
-
+        # print(f"DEBUG: setting rank: {rank}'s FNAME to be = {self.fName} ")
         if rank != PARTY_ID.SERVER:
             nUsers = original_data.nUsers
             self.nUsers = nUsers
@@ -37,7 +39,20 @@ class SFXGBoostClassifierBase:
                 for tree in treesofclass:
                     assert type(tree) == SFXGBoostTree
                     tree.setInstances(nUsers, np.full((nUsers, ), True)) # sets all root nodes to have all instances set to True
-        
+    
+    def copyquantiles(self):
+        self.quantileDB.featureDict
+        returnable = {}
+        for fName, quantileFeature in self.quantileDB.featureDict.items():
+            splittingCandidates = quantileFeature.splittingCandidates
+            returnable[fName] = splittingCandidates
+        return returnable
+    
+    def setquantiles(self, quantiles):
+
+        for fName, splittingCandidates in quantiles.items():
+            self.quantileDB.featureDict[fName].splittingCandidates = splittingCandidates
+
     def retrieve_differentials(self):
         """retrieves the G, H over the trees
         [G_tree1, G_tree2]
@@ -89,16 +104,19 @@ class SFXGBoost(SFXGBoostClassifierBase):
                             for i, n in enumerate(nodes[c]):
                                 Gpi = GH[0]
                                 Hpi = GH[1]
+                                n.Gpi[Pi-1] = Gpi[c][i]
+                                n.Hpi[Pi-1] = Hpi[c][i]
                                 if Pi == 1:                        
-                                    G[c][i] =  Gpi[c][i]
-                                    H[c][i] =  Hpi[c][i]  #TODO I should change the intial list to be zeros so I can just add
+                                    G[c][i] =  Gpi[c][i]  # I now save the gradients in the nodes, I don't really need this anymore
+                                    H[c][i] =  Hpi[c][i]  # I now save the gradients in the nodes, I don't really need this anymore
+                                    n.G = Gpi[c][i]
+                                    n.H = Hpi[c][i]
                                 else:
-                                    G[c][i] += Gpi[c][i]
-                                    H[c][i] += Hpi[c][i]
-                            # TODO save Gpi & Hpi for personalised attack
-                            self.trees[c][t].gradients[l] = G[c] # keep track aggregated gradients
-                            self.trees[c][t].hessians[l] = H[c] # keep track aggregated hessians
-
+                                    G[c][i] += Gpi[c][i]  # I now save the gradients in the nodes, I don't really need this anymore
+                                    H[c][i] += Hpi[c][i]  # I now save the gradients in the nodes, I don't really need this anymore
+                                    n.G += Gpi[c][i]
+                                    n.H += Hpi[c][i]
+                    
                     splittingInfos = [[] for _ in range(self.config.nClasses)] 
                     # print("got gradients")
                     for c in range(self.config.nClasses):
@@ -188,8 +206,11 @@ class SFXGBoost(SFXGBoostClassifierBase):
         other_users = [i for i in range(1, l) if i != rank]
         for featureid in range(self.config.nFeatures):
             features_i = deepcopy(X.featureDict[list(X.featureDict.keys())[featureid]])
-            if len(np.unique(features_i)) < q:
+            if len(np.unique(features_i)) < q*5:
+                print(len(np.unique(features_i)))
                 continue # not a continues feature to complete quantile_lookup.
+            else:
+                print(f"getting quantiles on feature {featureid}!!")
             for j in range(1, q-1):
                 Qj = None
                 if isPl:
@@ -238,6 +259,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
         feature = np.inf
         value = np.inf
         featureName = "no split"
+        featureId = None 
         
         if not is_last_level:
             for k in range(self.config.nFeatures):
@@ -331,7 +353,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
     
     def fit(self, X_train, y_train, fName):
             quantile = QuantiledDataBase(DataBase.data_matrix_to_database(X_train, fName) )
-
+                
             initprobability = (sum(y_train))/len(y_train)
             total_users = comm.Get_size() - 1
             total_lenght = len(X_train)
@@ -352,7 +374,10 @@ class SFXGBoost(SFXGBoostClassifierBase):
                 original = DataBase.data_matrix_to_database(X_train_my, fName)
                 quantile = quantile.splitupHorizontal(start_end[rank-1][0], start_end[rank-1][1])
                 self.setData(quantile, fName, original, y_train_my)
-            
+
+            if self.copied_quantiles != None:
+                self.setquantiles(self.copied_quantiles)
+
             self.boost(initprobability)
             return self
     
@@ -401,8 +426,10 @@ class SFXGBoostTree:
         self.id = id
         self.root = FLTreeNode()
         self.nNode = 0
-        self.G = [[] for _ in range(max_depth)]
-        self.H = [[] for _ in range(max_depth)]
+        # self.G = None 
+        # self.H = None
+        # self.Gpi = [ [] for _ in range(comm.Get_size() - 1)]
+        # self.Hpi = [ [] for _ in range(comm.Get_size() - 1)]
         
     def setInstances(self, nUsers, instances):
         self.root.nUsers = nUsers

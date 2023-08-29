@@ -27,7 +27,7 @@ class Config:
         self.nClasses, self.nFeatures = getConfigParams(self.dataset)
         self.nBuckets = nBuckets
 
-        self.save_location= "Saves/" + nameTest + "/"
+        self.save_location= "./Saves/" + nameTest + "_rank_" + str(rank)
 
     def prettyprint(self):
         print(f"experiment name = {self.experimentName}")

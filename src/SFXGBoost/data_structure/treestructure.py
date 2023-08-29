@@ -1,6 +1,8 @@
 
 import numpy as np
 from SFXGBoost.common.XGBoostcommon import ThresholdL1
+from SFXGBoost.config import rank, comm, Config
+
 class SplittingInfo:
     def __init__(self, bestSplitScore = -np.Infinity, featurId = None, featureName=None, splitValue=0.0, weight = None, nodeScore = None) -> None:
         self.bestSplitScore = bestSplitScore
@@ -81,15 +83,24 @@ class FLTreeNode(TreeNode):
         self.score = None
         self.parent = parent
         self.instances = instances
-        self.G = None
+        self.G = None 
         self.H = None
-        self.Gpi = None
-        self.Hpi = None
+        self.Gpi = [ [] for _ in range(comm.Get_size() - 1)]
+        self.Hpi = [ [] for _ in range(comm.Get_size() - 1)]
 
     def get_nodes_depth(self, l, cur_l=0):
+        """retrieves all the nodes that are at depth l [0, max_depth]
+
+        Args:
+            l (_type_): _description_
+            cur_l (int, optional): _description_. Defaults to 0.
+
+        Returns:
+            _type_: _description_
+        """
         ret = []
         if l == 0:
-            return self.root
+            return [self]
         else:
             for child in [self.leftBranch, self.rightBranch]:
                 if child == None:
@@ -101,7 +112,7 @@ class FLTreeNode(TreeNode):
                     if nodes == []:
                         continue
                     else:
-                        ret.append(nodes)
+                        ret.extend(nodes)
         return ret
 
     def get_private_info(self):

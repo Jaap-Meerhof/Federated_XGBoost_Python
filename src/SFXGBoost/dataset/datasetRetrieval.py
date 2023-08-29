@@ -155,11 +155,14 @@ def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/neh
     
     train_size = 1_000
     test_size = 1_000
+    n_shadows = 10
     random_state = 420
+    shadow_size=0
     if federated:
-        shadow_size = train_size * 5 + test_size 
-    shadow_size = train_size*2
-
+        shadow_size = train_size # * n_shadows + test_size 
+    else: 
+        shadow_size = train_size*2
+    # A MINIMUM OF 4 SHADOWS ARE NEEDED!!!
     def returnfunc():
         train = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data", paths)
         test = check_mul_paths_csv("AV_HealthcareAnalyticsII/test_data", paths)
@@ -187,8 +190,8 @@ def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/neh
         if federated:
             size = X.shape[0]
             begin = train_size+test_size
-            X_shadow = [X[i:i+shadow_size] for i in range(begin, size-shadow_size, shadow_size)]
-            y_shadow = [y[i:i+shadow_size] for i in range(begin, size-shadow_size, shadow_size)]
+            X_shadow = [X[i:i+shadow_size] for i in range(begin, size-shadow_size, shadow_size)][:n_shadows]
+            y_shadow = [y[i:i+shadow_size] for i in range(begin, size-shadow_size, shadow_size)][:n_shadows]
         else:
             X_shadow = X[train_size+test_size:train_size+test_size+shadow_size]
             y_shadow = y[train_size+test_size:train_size+test_size+shadow_size]
