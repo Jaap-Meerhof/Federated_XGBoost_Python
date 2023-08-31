@@ -49,6 +49,7 @@ def f_random(D_Train_Shadow, D_Out_Shadow):
     X_Train_Attack = np.vstack((X_Train_Shadow, X_Out_Shadow))
 
     #shuffle them
+    np.random.seed(10)
     np.random.shuffle(X_Train_Attack)
 
     #remove and take labels
@@ -66,16 +67,20 @@ def create_D_attack_centralised(shadow_model_s, D_Train_Shadow, D_Out_Shadow):
     # z = np.take(z, z_top_indices) # take top 3
     return z, labels
 
-def fitAttackmodel(config, attack_model, shadow_models, c, l, D_Train_Shadow):
+def fitAttackmodel(config, attack_model, shadow_models, c, l, D_Train_Attack_1):
+    input = None
+    D_Train_Attack = None  # c, l empty lists
     for i, shadow_model in enumerate(shadow_models):
-        D_Train_Attack = None  # c, l empty lists
         # print(f"working on D_Train for shadow model {i} out of {len(D_Train_Shadow)}")
         # shadow_model = shadow_model[i]
-        x, labels_train = f_random(D_Train_Shadow[i], D_Train_Shadow[(i+1) % len(D_Train_Shadow)])  #
+        x, labels_train = f_random(D_Train_Attack_1[i], D_Train_Attack_1[i])  #
+
         y = []
         z = shadow_model.predict_proba(x)
+
         for t in range(config.max_tree):
             nodes = shadow_model.trees[c][t].root.get_nodes_depth(l)
+            # print(nodes)
             for node in nodes:
                 splittinginfo = []
                 parent:FLTreeNode = node.parent
@@ -103,12 +108,16 @@ def fitAttackmodel(config, attack_model, shadow_models, c, l, D_Train_Shadow):
                 flattened = flatten_list([splittinginfo , node.G, node.H])  # flatten the information
                 input = np.column_stack((x, z, np.tile(flattened, (x.shape[0] , 1))))  # copy the flattened information for every x, f(x)=z
                 y.extend(labels_train)
+
                 if not D_Train_Attack is None: 
                     D_Train_Attack = np.vstack((D_Train_Attack, input))
                 else:
                     D_Train_Attack = input
-    print(np.shape(D_Train_Attack))
-    return attack_model.fit(D_Train_Attack, np.array(y).reshape(-1, 1))
+
+    # print(np.shape(D_Train_Attack))
+    # print(np.shape(np.array(y)))
+    # get_input_attack2(config, D_train_Attack_2, attack_models)
+    return attack_model.fit(D_Train_Attack, np.array(y))  # .reshape(-1, 1)
 
 def create_D_attack_federated(config: Config, D_Train_Shadow, X_train, X_test, shadow_models, target_model):
     """creates the attack dataset to train and test for the federated attack
@@ -226,9 +235,16 @@ def shadow_model_extraction(config, D_Train_Shadow, shadow_model, i):
 
     return D_Train_Attack, D_Train_Attack2, labels_train, labels_train_2
 
-def get_input_attack2(config:Config, D_train_Attack, attack_models):
+def get_input_attack2(config:Config, D_train_Attack_2, shadow_models, attack_models):            
     input_attack_2 = []
     y_attack_2 = []
+    for i, shadow_model in enumerate(shadow_models):
+        D_current = D_train_Attack_2[i]
+        z = shadow_model.predict_probas(D_current[0])
+        for c in range(config.nClasses):
+            for l in range(config.max_depth):
+                shadow_model.retrieve_Diff(c,l)
+    
     for c in range(config.nClasses):
         x_one = []
         for l, attack_model in enumerate(attack_models[c]):
@@ -316,9 +332,12 @@ class DepthNN(nn.Module):
 
         def forward(self, x): 
             # TODO add correcty data input
-            return self.model(x)
+            tmp = self.model(x)
+            tmp = tmp[:, 0]
+            return tmp
         
-        def fit(self, X, y, num_epochs=1000, lr=0.03, batch_size=1):
+        
+        def fit(self, X, y, num_epochs=3, lr=0.03, batch_size=1):
             # criterion = nn.CrossEntropyLoss()
             criterion = nn.BCELoss()  # Binary Cross Entropy 
             
@@ -329,20 +348,26 @@ class DepthNN(nn.Module):
 
             print(np.shape(X))
             print(np.shape(y))
-            train_data = DataLoader(TensorDataset(np.array(X), np.array(y)), batch_size, shuffle=True)
+            tensorx = torch.from_numpy(X).to(torch.float32)
+            tensory = torch.from_numpy(y).to(torch.float32)
+            train_data = DataLoader(TensorDataset(tensorx, tensory), batch_size, shuffle=True)
             self.train()
             epoch_loss = 0.0
             for epoch in range(num_epochs): # total pass through data
                 for i, data in enumerate(train_data):
                     X_batch = Variable(data[0])
-                    y_batch = Variable(data[1])
+                    y_batch = Variable(data[1]).reshape((1,))
                     optimizer.zero_grad()
                     outputs = self.forward(X_batch)
+                    # print(outputs)
+                    # print(outputs.shape)
+                    # print(y_batch)
+                    # print(y_batch.shape)
                     loss = criterion(outputs, y_batch)
                     loss.backward()
                     optimizer.step()
                     
-                    epoch_loss += loss.data[0]
+                    epoch_loss += loss
                     # float(epoch_loss) / (i+1)
             
         def predict(self, X, batchsize=1): # https://github.com/henryre/pytorch-fitmodule/blob/master/pytorch_fitmodule/fit_module.py
