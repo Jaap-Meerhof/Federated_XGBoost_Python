@@ -1,7 +1,7 @@
 from SFXGBoost.config import Config, rank, comm, MyLogger
 from SFXGBoost.Model import PARTY_ID, SFXGBoostClassifierBase, SFXGBoost
 from SFXGBoost.data_structure.databasestructure import QuantiledDataBase, DataBase
-from SFXGBoost.MemberShip import preform_attack_centralised, split_shadow, create_D_attack_centralised, create_D_attack_federated, predict_federated, get_input_attack2, DepthNN, fitAttackmodel 
+from SFXGBoost.MemberShip import preform_attack_centralised, split_shadow, create_D_attack_centralised, predict_federated, get_input_attack2, DepthNN, get_train_Attackmodel_1 
 from SFXGBoost.common.pickler import *
 import SFXGBoost.view.metric_save as saver
 from SFXGBoost.dataset.datasetRetrieval import getDataBase
@@ -111,6 +111,31 @@ def get_data_attack_centrally(target_model, shadow_model, attack_model, config, 
         data = retrieve_data(target_model, shadow_model, attack_model, X_train, y_train, X_test, y_test, z_test, labels_test)
     return data
 
+from concurrent.futures import ThreadPoolExecutor
+from concurrent import futures
+def concurrent(config, c, shadow_models, D_Train_Shadow, attack_models):
+    print(f"training attack models for class {c} out of {config.nClasses}")
+    for l in range(config.max_depth):
+        print(f"c={c} l={l}")
+        name = f"Attack_model {c},{l}"
+        D_Train_Attack, y = None, None
+        attack_models[c][l] = MLPClassifier(hidden_layer_sizes=(100,50,1), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
+        if not(isSaved(name, config)):
+            D_Train_Attack, y = get_train_Attackmodel_1(config, shadow_models, c, l, D_Train_Shadow) # TODO this is too slow, multithread?
+        attack_models[c][l] = retrieveorfit(attack_models[c][l], f"Attack_model {c},{l}", config, D_Train_Attack, np.array(y))
+    return attack_models[c], c
+
+def concurrent_multi(c, config, shadow_models, D_Train_Shadow, attack_models):
+    print(f"training attack models for class {c} out of {config.nClasses}")
+    for l in range(config.max_depth):
+        print(f"c={c} l={l}")
+        name = f"Attack_model {c},{l}"
+        D_Train_Attack, y = None, None
+        attack_models[c][l] = MLPClassifier(hidden_layer_sizes=(100,50,1), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
+        if not(isSaved(name, config)):
+            D_Train_Attack, y = get_train_Attackmodel_1(config, shadow_models, c, l, D_Train_Shadow) # TODO this is too slow, multithread?
+        attack_models[c][l] = retrieveorfit(attack_models[c][l], f"Attack_model {c},{l}", config, D_Train_Attack, np.array(y))
+
 def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN], config:Config, logger:Logger) -> dict:
     """Trains for a federated attack given the target_model, shadow_model(s), attack_model, config, logger
 
@@ -135,12 +160,12 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
     # D_Train_Shadow, D_Out_Shadow = split_shadow((X_shadow, y_shadow)) # TODO split shadow model to be same size as X_train
     # TODO split shadow for federated such that there is a list for all. D_Out does not have to exist in federated
     n_shadows = len(X_shadow)
-    D_Train_Shadow =   [(X_shadow[i]              , y_shadow[i]              ) for i in n_shadows]
-    D_Train_Attack_1=  [(X_shadow[(i+1)%n_shadows], y_shadow[(i+1)%n_shadows]) for i in n_shadows]
-    D_Train_Attack_2 = [(X_shadow[(i+2)%n_shadows], y_shadow[(i+2)%n_shadows]) for i in n_shadows]
+    D_Train_Shadow =   [(X_shadow[i]              , y_shadow[i]              ) for i in range(n_shadows)]
     
     for i, shadow_model in enumerate(shadow_models):
-        shadow_models[i] = retrieveorfit(shadow_model, "shadow_model_" + str(i), config, D_Train_Shadow[i][0], D_Train_Shadow[i][1], fName)
+        shadow_train_x = np.vstack((D_Train_Shadow[i][0], D_Train_Shadow[(i+1)%n_shadows][0]))
+        shadow_train_y = np.vstack((D_Train_Shadow[i][1], D_Train_Shadow[(i+1)%n_shadows][1]))
+        shadow_models[i] = retrieveorfit(shadow_model, "shadow_model_" + str(i), config, shadow_train_x, shadow_train_y, fName)
 
     G = shadow_models[0].trees[0][0].root.G # take first tree # first feature
     data = None
@@ -152,28 +177,55 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
         # D_train_Attack, D_Train_Attack2, D_test_Attack = create_D_attack_federated(config, D_Train_Shadow, X_train, X_test, shadow_models, target_model)
         # TODO create test data for attack models! :)
         # for c in tqdm(range(config.nClasses), desc="> training attack models"):
-        for c in range(config.nClasses): # TODO multithread
-                print(f"training attack models for class {c} out of {config.nClasses}")
-                for l in range(config.max_depth):
-                    print(f"c={c} l={l}")
-                    attack_models[c][l] = MLPClassifier(hidden_layer_sizes=(100,50,1), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
-                    fitAttackmodel(config, attack_models[c][l], shadow_models, c, l, D_Train_Attack_1) # TODO this is too slow, multithread?
-                    # attack_models[c][l].fit(D_train_Attack[0][c][l], D_train_Attack[1])
-                    # attack_models[c][l].fit(D_train_Attack[0][c][l], D_train_Attack[1], num_epochs=1000, lr=0.05)
+        
+
+        # with ThreadPoolExecutor(max_workers=10) as executor:
+        #     future_D_Train_Attack = [executor.submit(concurrent, config, c, shadow_models, D_Train_Shadow, attack_models) for c in range(config.nClasses)  ]
+
+        #     for future in futures.as_completed(future_D_Train_Attack):
+        #         attack_models[c], c = future.result()
+        
+        import multiprocessing
+        with multiprocessing.Pool(processes=5) as pool:
+            args_list = [(c, config, shadow_models, D_Train_Shadow, attack_models) for c in range(config.nClasses)]
+            pool.starmap(concurrent_multi, args_list)
+            # pool.map(concurrent_multi, args_list )
+        for c in range(config.nClasses):
+            for l in range(config.max_depth):
+                name = f"Attack_model {c},{l}"
+                import time
+                while not isSaved(name, config):
+                    time.sleep(0.1)
+                attack_models[c][l] = retrieve(name, config)
+
+        # for c in range(config.nClasses): # TODO multithread
+        #     print(f"training attack models for class {c} out of {config.nClasses}")
+        #     for l in range(config.max_depth):
+        #         print(f"c={c} l={l}")
+        #         name = f"Attack_model {c},{l}"
+        #         D_Train_Attack, y = None, None
+        #         attack_models[c][l] = MLPClassifier(hidden_layer_sizes=(100,50,1), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
+        #         if not(isSaved(name, config)):
+        #             D_Train_Attack, y = get_train_Attackmodel_1(config, shadow_models, c, l, D_Train_Shadow) # TODO this is too slow, multithread?
+        #         attack_models[c][l] = retrieveorfit(attack_models[c][l], f"Attack_model {c},{l}", config, D_Train_Attack, np.array(y))
+                # attack_models[c][l].fit(D_train_Attack[0][c][l], D_train_Attack[1])
+                # attack_models[c][l].fit(D_train_Attack[0][c][l], D_train_Attack[1], num_epochs=1000, lr=0.05)
+
         # after attack_models are done, train another model ontop of it.
         attack_model_2 = MLPClassifier(hidden_layer_sizes=(100,50,12), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
         
         # train attack_model 2 on the outputs of attack_models, max(p) & min(p) & avg(p) level 0,.., max(p) & min(p) & avg(p) level l. * max_tree * nClasses
+        
         # (X, y)
-        D_train_attack2_processed = get_input_attack2(config, D_Train_Attack_2, shadow_models, attack_models)
+        D_train_attack2 = get_input_attack2(config, D_Train_Shadow, shadow_models, attack_models)
 
-        attack_model_2.fit(D_train_attack2_processed[0], D_train_attack2_processed[0])
+        attack_model_2.fit(D_train_attack2[0], D_train_attack2[1])
         
         # predict on attack_model -> attack_model_2 -> asses on D_test_Attack
-        D_test_attack2_processed = get_input_attack2(config, D_test_Attack, attack_models)
-        y_pred = attack_model_2.predict(D_test_attack2_processed[0])
-        z_test = D_test_attack2_processed[0]
-        labels_test = D_test_attack2_processed[1]
+        D_test_attack2 = get_input_attack2(config, (X_test, y_test), shadow_models, attack_models)
+        y_pred = attack_model_2.predict(D_test_attack2[0])
+        z_test = D_test_attack2[0]
+        labels_test = D_test_attack2[1]
 
         # TODO take a couple of x's, put them into shadow model, take G & H and 
 
@@ -185,7 +237,9 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
 
         data = retrieve_data(target_model, shadow_models, attack_model_2, X_train, y_train, X_test, y_test, z_test, labels_test)
         logger.warning(f'accuracy attack = {data["accuracy test attack"]}')
+        print(f'accuracy attack = {data["accuracy test attack"]}')
         logger.warning(f'precision attack= {data["precision test attack"]}')
+        print(f'precision attack= {data["precision test attack"]}')
 
     return data
 
