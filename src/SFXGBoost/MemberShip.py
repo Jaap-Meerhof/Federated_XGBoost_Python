@@ -67,18 +67,55 @@ def create_D_attack_centralised(shadow_model_s, D_Train_Shadow, D_Out_Shadow):
     # z = np.take(z, z_top_indices) # take top 3
     return z, labels
 
-def fitAttackmodel(config, attack_model, shadow_models, c, l, D_Train_Attack_1):
+def get_info_node(x, z, nodes):
+    for node in nodes:
+        splittinginfo = []
+        parent:FLTreeNode = node.parent
+        curnode = node
+        i = 0
+        while parent != None:
+            i += 1
+            if i > 1000:
+                raise(Exception("loop in parent?"))
+            id = parent.splittingInfo.featureId
+            splitvalue = parent.splittingInfo.splitValue
+            splittinginfo.append(id)
+            splittinginfo.append(splitvalue)
+            if parent.leftBranch == curnode:
+                pass  # smaller equal <=
+                splittinginfo.append(0)
+            elif parent.rightBranch == curnode:
+                pass  # Greater > 
+                splittinginfo.append(1)
+            else:
+                raise(Exception("??"))  # This actually caught a bug
+            curnode = parent
+            parent = parent.parent
+
+        flattened = flatten_list([splittinginfo , node.G, node.H])  # flatten the information
+        input = np.column_stack((x, z, np.tile(flattened, (x.shape[0] , 1))))  # copy the flattened information for every x, f(x)=z
+        # y.extend(labels_train)
+
+        if not D_Train_Attack is None: 
+            D_Train_Attack = np.vstack((D_Train_Attack, input))
+        else:
+            D_Train_Attack = input
+    return D_Train_Attack, 
+
+def get_train_Attackmodel_1(config:Config, shadow_models, c, l, D_Train_Shadow): # TODO make faster :(
     input = None
     D_Train_Attack = None  # c, l empty lists
+    y=[]
     for i, shadow_model in enumerate(shadow_models):
         # print(f"working on D_Train for shadow model {i} out of {len(D_Train_Shadow)}")
         # shadow_model = shadow_model[i]
-        x, labels_train = f_random(D_Train_Attack_1[i], D_Train_Attack_1[i])  #
+        # print(f"shadow model {i} out of {len(shadow_models)}")
+        x, labels_train = f_random(D_Train_Shadow[i], D_Train_Shadow[(i+2) % len(D_Train_Shadow)])  #
 
-        y = []
         z = shadow_model.predict_proba(x)
 
         for t in range(config.max_tree):
+            # print(f"tree {t} out of {config.max_tree}")
             nodes = shadow_model.trees[c][t].root.get_nodes_depth(l)
             # print(nodes)
             for node in nodes:
@@ -106,6 +143,7 @@ def fitAttackmodel(config, attack_model, shadow_models, c, l, D_Train_Attack_1):
                     parent = parent.parent
 
                 flattened = flatten_list([splittinginfo , node.G, node.H])  # flatten the information
+                # todo only take 100
                 input = np.column_stack((x, z, np.tile(flattened, (x.shape[0] , 1))))  # copy the flattened information for every x, f(x)=z
                 y.extend(labels_train)
 
@@ -117,145 +155,31 @@ def fitAttackmodel(config, attack_model, shadow_models, c, l, D_Train_Attack_1):
     # print(np.shape(D_Train_Attack))
     # print(np.shape(np.array(y)))
     # get_input_attack2(config, D_train_Attack_2, attack_models)
-    return attack_model.fit(D_Train_Attack, np.array(y))  # .reshape(-1, 1)
+    return D_Train_Attack, np.array(y)  # .reshape(-1, 1)
 
-def create_D_attack_federated(config: Config, D_Train_Shadow, X_train, X_test, shadow_models, target_model):
-    """creates the attack dataset to train and test for the federated attack
-
-    Args:
-        D_Train_Shadow (_type_): _description_
-        D_Out_Shadow (_type_): _description_
-        X_train (_type_): _description_
-        X_test (_type_): _description_
-        G_shadows (_type_): _description_
-        H_shadows (_type_): _description_
-        shadow_models (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    from concurrent.futures import ThreadPoolExecutor
-    from concurrent import futures
-    # D_train_attack should be D_train_shadow label = 1, D_Out_Shadow = 0
-    # I first need to combine the shadowmodel's data, then add the relevant split information to that attack model
-    D_Train_Attack = [ [[] for _ in range(config.max_depth)] for _ in range(config.nClasses)]  # c, l empty lists
-    D_Train_Attack2 = [ [[] for _ in range(config.max_depth)] for _ in range(config.nClasses)]  # c, l empty lists
-    D_Test_Attack = [ [[] for _ in range(config.max_depth)] for _ in range(config.nClasses)]  # c, l empty lists
-    labels_train, labels_train_2 = None, None
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        future_D_Train_Attack = [executor.submit(shadow_model_extraction, config, D_Train_Shadow, shadow_models[i], i) for i in range(len(D_Train_Shadow))  ]
-        for future in futures.as_completed(future_D_Train_Attack):
-            D_Train_Attack_current, D_Train_Attack2_current, labels_train_current, labels_train_2_current = future.result()
-            [ [[D_Train_Attack[c][l].append(D_Train_Attack_current[c][l])] for l in range(config.max_depth)] for c in range(config.nClasses)]
-            [ [[D_Train_Attack2[c][l].append(D_Train_Attack2_current[c][l])] for l in range(config.max_depth)] for c in range(config.nClasses)]
-
-            # np.concatenate((D_Train_Attack, D_Train_Attack_current), axis=2)
-            # np.concatenate((D_Train_Attack2, D_Train_Attack2_current), axis=2)
-            np.hstack((labels_train, labels_train_current))
-            np.hstack((labels_train_2, labels_train_2_current))
-    lastlen = -1
-    x, labels_test = f_random((X_train, None), (X_test, None) )
-    z = target_model.predict_proba(x)
-    for c in range(config.nClasses):
-        print(f"working on D_Test for class {c} out of {config.nClasses}")
-        for t in range(config.max_tree):
-            for l in range(config.max_depth):
-                nodes = target_model.trees[c][t].root.get_nodes_depth(l)
-                for node in nodes:
-                    splittinginfo = []
-                    curnode = node
-                    parent:FLTreeNode = node.parent
-                    while parent != None:
-                        splittinginfo.append(parent.splittingInfo.featureId)
-                        splittinginfo.append(parent.splittingInfo.splitValue)
-                        if parent.leftBranch == curnode:
-                            splittinginfo.append(0)
-                        elif parent.rightBranch == curnode:
-                            splittinginfo.append(1)
-                        else:
-                            raise(Exception("??"))
-                        curnode = parent
-                        parent = parent.parent
-
-                    flattened = flatten_list([splittinginfo , node.G, node.H])  # flatten the information
-                    input = np.column_stack((x, z, np.tile(flattened, (x.shape[0] , 1))))  # copy the flattened information for every x, f(x)=z
-                    D_Test_Attack[c][l].append(input)
-                    
-    D_Train_Attack = (D_Train_Attack, labels_train)
-    D_Train_Attack2 = (D_Train_Attack2, labels_train_2)
-    D_Test_Attack = (D_Test_Attack, labels_test)
-
-    return D_Train_Attack, D_Train_Attack2, D_Test_Attack
-
-def shadow_model_extraction(config, D_Train_Shadow, shadow_model, i):
-    D_Train_Attack = [ [[] for _ in range(config.max_depth)] for _ in range(config.nClasses)]  # c, l empty lists
-    D_Train_Attack2 = [ [[] for _ in range(config.max_depth)] for _ in range(config.nClasses)]  # c, l empty lists
-    print(f"working on D_Train for shadow model {i} out of {len(D_Train_Shadow)}")
-    # shadow_model = shadow_model[i]
-    x, labels_train = f_random(D_Train_Shadow[i], D_Train_Shadow[(i+1) % len(D_Train_Shadow)])  #
-    z = shadow_model.predict_proba(x)
-    x_2, labels_train_2 = f_random(D_Train_Shadow[(i+2) % len(D_Train_Shadow)], D_Train_Shadow[(i+3) % len(D_Train_Shadow)])
-    z_2 = shadow_model.predict_proba(x_2)
-    for c in range(config.nClasses):
-        # print(f"class {c} out of {config.nClasses}")
-        for t in range(config.max_tree):
-            # print(f"tree {t} out or {config.max_tree}")
-            for l in range(config.max_depth):
-                # print(f"depth {l} out of {config.max_depth}")
-                nodes = shadow_model.trees[c][t].root.get_nodes_depth(l)
-                for node in nodes:
-                    splittinginfo = []
-                    parent:FLTreeNode = node.parent
-                    curnode = node
-                    i = 0
-                    while parent != None:
-                        i += 1
-                        if i > 1000:
-                            raise(Exception("loop in parent?"))
-                        id = parent.splittingInfo.featureId
-                        splitvalue = parent.splittingInfo.splitValue
-                        splittinginfo.append(id)
-                        splittinginfo.append(splitvalue)
-                        if parent.leftBranch == curnode:
-                            pass  # smaller equal <=
-                            splittinginfo.append(0)
-                        elif parent.rightBranch == curnode:
-                            pass  # Greater > 
-                            splittinginfo.append(1)
-                        else:
-                            raise(Exception("??"))  # This actually caught a bug
-                        curnode = parent
-                        parent = parent.parent
-
-                    flattened = flatten_list([splittinginfo , node.G, node.H])  # flatten the information
-                    input = np.column_stack((x, z, np.tile(flattened, (x.shape[0] , 1))))  # copy the flattened information for every x, f(x)=z
-                    D_Train_Attack[c][l].append(input)
-                    input_2 = np.column_stack((x_2, z_2, np.tile(flattened, (x.shape[0] , 1))))  # copy the flattened information for every x, f(x)=z
-                    D_Train_Attack2[c][l].append(input_2)
-
-    return D_Train_Attack, D_Train_Attack2, labels_train, labels_train_2
-
-def get_input_attack2(config:Config, D_train_Attack_2, shadow_models, attack_models):            
+def get_input_attack2(config:Config, D_Train_Shadow, shadow_models, attack_models):            
     input_attack_2 = []
     y_attack_2 = []
     for i, shadow_model in enumerate(shadow_models):
-        D_current = D_train_Attack_2[i]
-        z = shadow_model.predict_probas(D_current[0])
+        D_in = D_Train_Shadow[i]
+        D_out = D_Train_Shadow[i+3 % len(D_Train_Shadow)]
+        x, labels_train = f_random(D_in, D_out)
+        z = shadow_model.predict_probas(x)
+        input = flatten_list([x, z])
         for c in range(config.nClasses):
             for l in range(config.max_depth):
-                shadow_model.retrieve_Diff(c,l)
-    
-    for c in range(config.nClasses):
-        x_one = []
-        for l, attack_model in enumerate(attack_models[c]):
-            labels = D_train_Attack[1][c][l]
-            preds = attack_model.predict(D_train_Attack[0][c][l])
-            max = np.max(preds, axis=1, initial=0)
-            min = np.min(preds, axis=1, initial=0)
-            avg = np.average(preds, axis=1, initial=0)
-            list.extend([max, min, avg])
-        input_attack_2.append(x_one)
-        y_attack_2.append(labels)
+                all_t = []
+                for t in range(config.max_tree):
+                    nodes = shadow_model.trees[c][t].root.get_nodes_depth(l)
+                    nodes_params = get_info_node(x, z, nodes)
+                    all_t.extend(nodes_params)
+                list_of_outputs = attack_models[c][l].predict_proba(all_t)
+                avg = np.average(list_of_outputs, axis=1, initial=0)
+                min = np.min(list_of_outputs, axis=1, initial=0)
+                max = np.max(list_of_outputs, axis=1, initial=0)
+                input.extend([avg, min, max])
+        input_attack_2.append(input)
+        y_attack_2.append(labels_train)
     return (input_attack_2, y_attack_2)
 
 def predict_federated(config:Config, attack_models, Attack_Model_2, D_test_Attack):
