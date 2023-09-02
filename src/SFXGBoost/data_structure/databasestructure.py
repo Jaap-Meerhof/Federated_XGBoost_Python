@@ -37,7 +37,7 @@ class QuantiledFeature(FeatureData):
             pass
             range_min = np.min(fData)
             range_max = np.max(fData)
-            splittingCandidates = np.linspace(range_min, range_max, num=99)
+            splittingCandidates = np.linspace(range_min, range_max, num=25)
         else:
             splittingCandidates = np.unique(fData)
 

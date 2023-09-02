@@ -113,7 +113,7 @@ def get_data_attack_centrally(target_model, shadow_model, attack_model, config, 
 
 from concurrent.futures import ThreadPoolExecutor
 from concurrent import futures
-def concurrent(config, c, shadow_models, D_Train_Shadow, attack_models):
+def concurrent(config, logger, c, shadow_models, D_Train_Shadow, attack_models):
     print(f"training attack models for class {c} out of {config.nClasses}")
     for l in range(config.max_depth):
         print(f"c={c} l={l}")
@@ -121,11 +121,11 @@ def concurrent(config, c, shadow_models, D_Train_Shadow, attack_models):
         D_Train_Attack, y = None, None
         attack_models[c][l] = MLPClassifier(hidden_layer_sizes=(100,50,1), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
         if not(isSaved(name, config)):
-            D_Train_Attack, y = get_train_Attackmodel_1(config, shadow_models, c, l, D_Train_Shadow) # TODO this is too slow, multithread?
+            D_Train_Attack, y = get_train_Attackmodel_1(config, logger, shadow_models, c, l, D_Train_Shadow) # TODO this is too slow, multithread?
         attack_models[c][l] = retrieveorfit(attack_models[c][l], f"Attack_model {c},{l}", config, D_Train_Attack, np.array(y))
-    return attack_models[c], c
+    return c, attack_models[c]
 
-def concurrent_multi(c, config, shadow_models, D_Train_Shadow, attack_models):
+def concurrent_multi(c, config, logger, shadow_models, D_Train_Shadow, attack_models):
     print(f"training attack models for class {c} out of {config.nClasses}")
     for l in range(config.max_depth):
         print(f"c={c} l={l}")
@@ -179,24 +179,24 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
         # for c in tqdm(range(config.nClasses), desc="> training attack models"):
         
 
-        # with ThreadPoolExecutor(max_workers=10) as executor:
-        #     future_D_Train_Attack = [executor.submit(concurrent, config, c, shadow_models, D_Train_Shadow, attack_models) for c in range(config.nClasses)  ]
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            future_D_Train_Attack = [executor.submit(concurrent, config, logger, c, shadow_models, D_Train_Shadow, attack_models) for c in range(config.nClasses)  ]
 
-        #     for future in futures.as_completed(future_D_Train_Attack):
-        #         attack_models[c], c = future.result()
+            for future in futures.as_completed(future_D_Train_Attack):
+                c, attack_models[c] = future.result()
         
-        import multiprocessing
-        with multiprocessing.Pool(processes=5) as pool:
-            args_list = [(c, config, shadow_models, D_Train_Shadow, attack_models) for c in range(config.nClasses)]
-            pool.starmap(concurrent_multi, args_list)
-            # pool.map(concurrent_multi, args_list )
-        for c in range(config.nClasses):
-            for l in range(config.max_depth):
-                name = f"Attack_model {c},{l}"
-                import time
-                while not isSaved(name, config):
-                    time.sleep(0.1)
-                attack_models[c][l] = retrieve(name, config)
+        # import multiprocessing
+        # with multiprocessing.Pool(processes=5) as pool:
+        #     args_list = [(c, config, logger, shadow_models, D_Train_Shadow, attack_models) for c in range(config.nClasses)]
+        #     pool.starmap(concurrent_multi, args_list)
+        #     # pool.map(concurrent_multi, args_list )
+        # for c in range(config.nClasses):
+        #     for l in range(config.max_depth):
+        #         name = f"Attack_model {c},{l}"
+        #         import time
+        #         while not isSaved(name, config):
+        #             time.sleep(0.1)
+        #         attack_models[c][l] = retrieve(name, config)
 
         # for c in range(config.nClasses): # TODO multithread
         #     print(f"training attack models for class {c} out of {config.nClasses}")
@@ -206,7 +206,7 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
         #         D_Train_Attack, y = None, None
         #         attack_models[c][l] = MLPClassifier(hidden_layer_sizes=(100,50,1), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
         #         if not(isSaved(name, config)):
-        #             D_Train_Attack, y = get_train_Attackmodel_1(config, shadow_models, c, l, D_Train_Shadow) # TODO this is too slow, multithread?
+        #             D_Train_Attack, y = get_train_Attackmodel_1(config, logger, shadow_models, c, l, D_Train_Shadow) # TODO this is too slow, multithread?
         #         attack_models[c][l] = retrieveorfit(attack_models[c][l], f"Attack_model {c},{l}", config, D_Train_Attack, np.array(y))
                 # attack_models[c][l].fit(D_train_Attack[0][c][l], D_train_Attack[1])
                 # attack_models[c][l].fit(D_train_Attack[0][c][l], D_train_Attack[1], num_epochs=1000, lr=0.05)
@@ -220,9 +220,10 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
         D_train_attack2 = get_input_attack2(config, D_Train_Shadow, shadow_models, attack_models)
 
         attack_model_2.fit(D_train_attack2[0], D_train_attack2[1])
-        
+        print(f"fitted attack model2 !")
         # predict on attack_model -> attack_model_2 -> asses on D_test_Attack
-        D_test_attack2 = get_input_attack2(config, (X_test, y_test), shadow_models, attack_models)
+        D_test_attack2 = (X_train, y_train), (X_test, y_test)
+        D_test_attack2 = get_input_attack2(config, D_test_attack2, [target_model], attack_models)
         y_pred = attack_model_2.predict(D_test_attack2[0])
         z_test = D_test_attack2[0]
         labels_test = D_test_attack2[1]
@@ -329,7 +330,7 @@ def experiment2():
             learning_rate=0.3,
             max_depth=5,
             max_tree=9,
-            nBuckets=100)
+            nBuckets=25)
             logger = MyLogger(config).logger
             if rank == PARTY_ID.SERVER: logger.warning(config.prettyprint())
 
@@ -363,6 +364,7 @@ def experiment2():
             
             # saver.save_experiment_2_one_run(attack_model, )
     if rank == PARTY_ID.SERVER:
+        save(all_data, name="all_data federated", config=config)
         saver.create_plots_experiment_2(all_data)
 
 
@@ -425,4 +427,6 @@ def main():
         print(f"y_test = {np.argmax(y_test, axis=1)}")
         print(f"y_pred_org = {y_pred_org}")
         print(f"Accuracy federboost = {accuracy_score(np.argmax(y_test, axis=1), y_pred_org)}")
-main()
+
+import cProfile
+cProfile.run('main()', sort='cumtime')

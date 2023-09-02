@@ -87,6 +87,8 @@ class FLTreeNode(TreeNode):
         self.H = None
         self.Gpi = [ [] for _ in range(comm.Get_size() - 1)]
         self.Hpi = [ [] for _ in range(comm.Get_size() - 1)]
+        self.splitting_sgh = None  # NOT USED YET
+        self.splitting_sgh = None  # store parent's splits, + your gradients
 
     def get_nodes_depth(self, l, cur_l=0):
         """retrieves all the nodes that are at depth l [0, max_depth]

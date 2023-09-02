@@ -6,6 +6,8 @@ from SFXGBoost.Model import SFXGBoost
 from SFXGBoost.data_structure.treestructure import FLTreeNode
 from sklearn.model_selection import train_test_split
 from SFXGBoost.common import flatten_list
+import sys
+
 def split_shadow(D_Shadow):
     """Splits the shadow_dataset such that it can be used for training with D_Train_Shadow and D_Out_Shadow. 
 
@@ -28,7 +30,7 @@ def federated_split(D_Shadow):
     num_shadows = len(D_Shadow)
     D_Shadow[0:num_shadows-1], D_Shadow[num_shadows]
 
-def f_random(D_Train_Shadow, D_Out_Shadow):
+def f_random(D_Train_Shadow, D_Out_Shadow, seed=0, take=0):
     """splits D_Train_Shadow and D_Out_Shadow such that they can be used for training the attack model.
     The features should be picked randomly from either D_Train_Shadow or D_Out_Shadow, 
     the corresponding label should be 0 if from Out_Shadow and 1 if from Train_Shadow
@@ -40,6 +42,12 @@ def f_random(D_Train_Shadow, D_Out_Shadow):
     min_lenght = np.min((D_Train_Shadow[0].shape[0], D_Out_Shadow[0].shape[0])) # make it such that the concatenated list is 50/50 split
     X_Train_Shadow = D_Train_Shadow[0][:min_lenght, :]
     X_Out_Shadow = D_Out_Shadow[0][:min_lenght, :]
+    if take != 0:
+        take = take//2
+        np.random.seed(seed)
+        indices = np.random.choice(min_lenght, take, replace=True)
+        X_Train_Shadow = X_Train_Shadow[indices]
+        X_Out_Shadow = X_Out_Shadow[indices]
 
     # add an extra column with 1 if Train_Shadow else 0
     X_Train_Shadow = np.hstack( (X_Train_Shadow, np.ones((X_Train_Shadow.shape[0], 1)))) 
@@ -49,7 +57,7 @@ def f_random(D_Train_Shadow, D_Out_Shadow):
     X_Train_Attack = np.vstack((X_Train_Shadow, X_Out_Shadow))
 
     #shuffle them
-    np.random.seed(10)
+    np.random.seed(seed)
     np.random.shuffle(X_Train_Attack)
 
     #remove and take labels
@@ -68,6 +76,7 @@ def create_D_attack_centralised(shadow_model_s, D_Train_Shadow, D_Out_Shadow):
     return z, labels
 
 def get_info_node(x, z, nodes):
+    D_Train_Attack = None
     for node in nodes:
         splittinginfo = []
         parent:FLTreeNode = node.parent
@@ -93,25 +102,25 @@ def get_info_node(x, z, nodes):
             parent = parent.parent
 
         flattened = flatten_list([splittinginfo , node.G, node.H])  # flatten the information
-        input = np.column_stack((x, z, np.tile(flattened, (x.shape[0] , 1))))  # copy the flattened information for every x, f(x)=z
+        # node.splitting_sgh = flattened  # 
+        input = np.column_stack((x, z, np.tile(flattened, ((x.shape[0]), 1)) ))  # copy the flattened information for every x, f(x)=z
         # y.extend(labels_train)
 
         if not D_Train_Attack is None: 
             D_Train_Attack = np.vstack((D_Train_Attack, input))
         else:
             D_Train_Attack = input
-    return D_Train_Attack, 
+    return D_Train_Attack
 
-def get_train_Attackmodel_1(config:Config, shadow_models, c, l, D_Train_Shadow): # TODO make faster :(
+def get_train_Attackmodel_1(config:Config, logger:Logger, shadow_models, c, l, D_Train_Shadow): # TODO make faster :(
     input = None
-    D_Train_Attack = None  # c, l empty lists
+    D_Train_Attack = None  # c, l empty lists size is nshadows * (len(D_train_shadow)*2) * n_nodes # where n_nodes scales exponentially
     y=[]
     for i, shadow_model in enumerate(shadow_models):
         # print(f"working on D_Train for shadow model {i} out of {len(D_Train_Shadow)}")
         # shadow_model = shadow_model[i]
         # print(f"shadow model {i} out of {len(shadow_models)}")
-        x, labels_train = f_random(D_Train_Shadow[i], D_Train_Shadow[(i+2) % len(D_Train_Shadow)])  #
-
+        x, labels_train = f_random(D_Train_Shadow[i], D_Train_Shadow[(i+2) % len(D_Train_Shadow)], seed=i, take=100)  #
         z = shadow_model.predict_proba(x)
 
         for t in range(config.max_tree):
@@ -123,6 +132,7 @@ def get_train_Attackmodel_1(config:Config, shadow_models, c, l, D_Train_Shadow):
                 parent:FLTreeNode = node.parent
                 curnode = node
                 i = 0
+                
                 while parent != None:
                     i += 1
                     if i > 1000:
@@ -149,6 +159,9 @@ def get_train_Attackmodel_1(config:Config, shadow_models, c, l, D_Train_Shadow):
 
                 if not D_Train_Attack is None: 
                     D_Train_Attack = np.vstack((D_Train_Attack, input))
+                    # print(sys.getsizeof(D_Train_Attack))
+                    # print(f"shape: {D_Train_Attack.shape[0]}")
+
                 else:
                     D_Train_Attack = input
 
@@ -157,24 +170,33 @@ def get_train_Attackmodel_1(config:Config, shadow_models, c, l, D_Train_Shadow):
     # get_input_attack2(config, D_train_Attack_2, attack_models)
     return D_Train_Attack, np.array(y)  # .reshape(-1, 1)
 
-def get_input_attack2(config:Config, D_Train_Shadow, shadow_models, attack_models):            
+def get_input_attack2(config:Config, D_Train_Shadow, models, attack_models):            
     input_attack_2 = []
     y_attack_2 = []
-    for i, shadow_model in enumerate(shadow_models):
+    
+    for i, model in enumerate(models):
+        print(f"busy with model {i} out of {len(models)}")
         D_in = D_Train_Shadow[i]
-        D_out = D_Train_Shadow[i+3 % len(D_Train_Shadow)]
+        D_out = None
+        if len(models) == 1: # only target model was given, no shadow models
+            D_out = D_Train_Shadow[1]
+        else:
+            D_out = D_Train_Shadow[i+3 % len(D_Train_Shadow)]
         x, labels_train = f_random(D_in, D_out)
-        z = shadow_model.predict_probas(x)
+        z = model.predict_proba(x)
         input = flatten_list([x, z])
         for c in range(config.nClasses):
             for l in range(config.max_depth):
-                all_t = []
+                all_t = None
                 for t in range(config.max_tree):
-                    nodes = shadow_model.trees[c][t].root.get_nodes_depth(l)
+                    nodes = model.trees[c][t].root.get_nodes_depth(l)
                     nodes_params = get_info_node(x, z, nodes)
-                    all_t.extend(nodes_params)
+                    if all_t is None:
+                        all_t = nodes_params
+                    else:
+                        all_t = np.vstack((all_t, nodes_params))
                 list_of_outputs = attack_models[c][l].predict_proba(all_t)
-                avg = np.average(list_of_outputs, axis=1, initial=0)
+                avg = np.average(list_of_outputs, axis=1)
                 min = np.min(list_of_outputs, axis=1, initial=0)
                 max = np.max(list_of_outputs, axis=1, initial=0)
                 input.extend([avg, min, max])

@@ -144,6 +144,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
         else:
             
             # new_splits = self.quantile_lookup()
+            # if rank == 1: print(f"new_splits = {new_splits}")
             # print("DEBUG found splits")
 
             if rank == 1: # send found splits to server (doesn't need to be done)
@@ -202,12 +203,14 @@ class SFXGBoost(SFXGBoostClassifierBase):
         l = comm.Get_size()
         Pl = 1
         isPl = rank == Pl # active party 
-        Q = np.zeros((self.nFeatures, q))
+        # Q = np.zeros((self.nFeatures, q))
+        Q = [[] for _ in range(self.nFeatures)]
         other_users = [i for i in range(1, l) if i != rank]
         for featureid in range(self.config.nFeatures):
             features_i = deepcopy(X.featureDict[list(X.featureDict.keys())[featureid]])
             if len(np.unique(features_i)) < q*5:
-                print(len(np.unique(features_i)))
+                # print(len(np.unique(features_i)))
+                Q[featureid] = [np.unique(features_i)]
                 continue # not a continues feature to complete quantile_lookup.
             else:
                 print(f"getting quantiles on feature {featureid}!!")
@@ -241,9 +244,10 @@ class SFXGBoost(SFXGBoostClassifierBase):
                         Qmax = Qj
                     elif isPl and nPrime < n/q:
                         Qmin = Qj
-                Q[featureid][j] = Qj
+                Q[featureid].append(Qj)
                 print(f"my rank is {rank} with Qj = {Qj}")
                 features_i = featureid[featureid < Qj] # remove the local xs that are smaller than Qj
+            Q[featureid] = np.sort(Q[featureid])
         return Q
 
 
