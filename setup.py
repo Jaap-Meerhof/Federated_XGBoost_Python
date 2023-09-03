@@ -6,7 +6,7 @@ with open('README.md', 'r', encoding='utf-8') as fh:
 setuptools.setup(
     name='SFXGBoost',
     author='Jaap Meerhof',
-    author_email='jaapmeerhof@proton.me',
+    author_email='jaapmeerhof"at"proton.me',
     description='Simple Federated XGBoost implementation as descibed in the paper: TODO',
     keywords='Federated, XGBoost, package',
     long_description=long_description,
