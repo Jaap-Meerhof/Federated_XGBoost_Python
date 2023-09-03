@@ -29,9 +29,38 @@ def plot_acc_one(data, labels, destination='plot.png', name='Sample Text', subte
     plt.show()
     plt.savefig(destination, format="jpeg", dpi=1200, bbox_inches='tight')
 
-def plot_histogram(datasets, data, destination="Results/experiment2.jpeg"):
-    
+def plot_experiment2(all_data:dict, destination="Plots/experiment2.jpeg"):
+    """Plots accuracy and precision of the attack in one plot with two subplots
+    and plots accuracy and precision of target model in one plot
 
+    All_data = {name_network: {dataset:{precision,...,metric}}}
+    Args:
+        all_data (_type_): _description_
+        destination (str, optional): _description_. Defaults to "Plots/experiment2.jpeg".
+    """
+    for name, datasets in all_data.items():
+        for dataset, metrics in datasets.items():
+            precision_attack = metrics["precision test attack"]
+            accuracy_attack = metrics["accuracy test attack"]
+            data[name].append(accuracy_attack)
+            data[name].append()
+    datasets = list(all_data[list(all_data.keys())[0]].keys())
+    data = {}
+    pass
+
+def plot_histogram(datasets, data, destination="Plots/experiment2.jpeg"):
+    """_summary_
+    example
+    datasets = ("Healthcare", "MNIST")
+    data = {"XGBoost":(0.5, 0.6),
+        "FederBoost Centralised":(0.5, 0.6),
+        "FederBoost Federated":(0.6, 0.8)}
+
+    Args:
+        datasets (_type_): _description_
+        data (_type_): _description_
+        destination (str, optional): _description_. Defaults to "Plots/experiment2.jpeg".
+    """
     width = 0.25
     multiplier = 0
     x = np.arange(len(datasets))
@@ -46,6 +75,6 @@ def plot_histogram(datasets, data, destination="Results/experiment2.jpeg"):
     ax.set_xticks(x+width, datasets)
     ax.legend(loc='upper left', ncol=3)
     ax.set_ylim(0, 1)
+    plt.savefig(destination, dpi=1200, format='jpeg')
     plt.show()
-    plt.savefig(destination, format="jpeg", dpi=1200, bbox_inches='tight')
 

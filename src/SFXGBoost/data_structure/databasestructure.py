@@ -33,11 +33,11 @@ class QuantiledFeature(FeatureData):
         # for v in fData:
         #     sketch.add(v)
 
-        if len(np.unique(fData)) > 100:
+        if len(np.unique(fData)) > 200:
             pass
             range_min = np.min(fData)
             range_max = np.max(fData)
-            splittingCandidates = np.linspace(range_min, range_max, num=25)
+            splittingCandidates = np.linspace(range_min, range_max, num=200) # TODO nBuckets
         else:
             splittingCandidates = np.unique(fData)
 

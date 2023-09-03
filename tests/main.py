@@ -119,7 +119,7 @@ def concurrent(config, logger, c, shadow_models, D_Train_Shadow, attack_models):
         print(f"c={c} l={l}")
         name = f"Attack_model {c},{l}"
         D_Train_Attack, y = None, None
-        attack_models[c][l] = MLPClassifier(hidden_layer_sizes=(100,50,1), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
+        attack_models[c][l] = MLPClassifier(hidden_layer_sizes=(100,50,1), activation='relu', solver='adam', learning_rate_init=0.001, max_iter=1000)
         if not(isSaved(name, config)):
             D_Train_Attack, y = get_train_Attackmodel_1(config, logger, shadow_models, c, l, D_Train_Shadow) # TODO this is too slow, multithread?
         attack_models[c][l] = retrieveorfit(attack_models[c][l], f"Attack_model {c},{l}", config, D_Train_Attack, np.array(y))
@@ -212,7 +212,7 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
                 # attack_models[c][l].fit(D_train_Attack[0][c][l], D_train_Attack[1], num_epochs=1000, lr=0.05)
 
         # after attack_models are done, train another model ontop of it.
-        attack_model_2 = MLPClassifier(hidden_layer_sizes=(100,50,12), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
+        attack_model_2 = MLPClassifier(hidden_layer_sizes=(50,25,1), activation='relu', solver='adam', learning_rate_init=0.001, max_iter=1000)
         
         # train attack_model 2 on the outputs of attack_models, max(p) & min(p) & avg(p) level 0,.., max(p) & min(p) & avg(p) level l. * max_tree * nClasses
         
@@ -365,7 +365,7 @@ def experiment2():
             # saver.save_experiment_2_one_run(attack_model, )
     if rank == PARTY_ID.SERVER:
         save(all_data, name="all_data federated", config=config)
-        saver.create_plots_experiment_2(all_data)
+        # saver.create_plots_experiment_2(all_data)
 
 
 def main():

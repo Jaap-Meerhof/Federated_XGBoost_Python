@@ -153,8 +153,8 @@ def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/neh
         _type_: _description_
     """
     
-    train_size = 1_000
-    test_size = 1_000
+    train_size = 2_000
+    test_size = 2_000
     n_shadows = 10
     random_state = 420
     shadow_size=0
@@ -179,6 +179,8 @@ def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/neh
         fName = train.columns.tolist()[1:17]
         X = train.values[:, 1:17]
         y = makeOneHot(y = train.values[:, 17].reshape(-1,1))
+
+
         X_train = X[:train_size]
         y_train = y[:train_size]
         
