@@ -5,13 +5,15 @@ from SFXGBoost.MemberShip import preform_attack_centralised, split_shadow, creat
 from SFXGBoost.common.pickler import *
 import SFXGBoost.view.metric_save as saver
 from SFXGBoost.dataset.datasetRetrieval import getDataBase
+from SFXGBoost.view.plotter import plot_experiment2
+
 from typing import List
 import numpy as np
 from logging import Logger
 import xgboost as xgb
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neural_network import MLPClassifier
-
+from copy import deepcopy
 import sys
 
 
@@ -177,10 +179,11 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
         # D_train_Attack, D_Train_Attack2, D_test_Attack = create_D_attack_federated(config, D_Train_Shadow, X_train, X_test, shadow_models, target_model)
         # TODO create test data for attack models! :)
         # for c in tqdm(range(config.nClasses), desc="> training attack models"):
-        
+        # attack_models[c][l] = MLPClassifier(hidden_layer_sizes=(100,50,1), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
+        attack_models = [ [MLPClassifier(hidden_layer_sizes=(100,50,1), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000) for l in range(config.max_depth)] for c in range(config.nClasses)]
 
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            future_D_Train_Attack = [executor.submit(concurrent, config, logger, c, shadow_models, D_Train_Shadow, attack_models) for c in range(config.nClasses)  ]
+        with ThreadPoolExecutor(max_workers=6) as executor:
+            future_D_Train_Attack = [executor.submit(concurrent, config, logger, c, deepcopy(shadow_models), deepcopy(D_Train_Shadow), deepcopy(attack_models)) for c in range(config.nClasses)  ]
 
             for future in futures.as_completed(future_D_Train_Attack):
                 c, attack_models[c] = future.result()
@@ -212,12 +215,17 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
                 # attack_models[c][l].fit(D_train_Attack[0][c][l], D_train_Attack[1], num_epochs=1000, lr=0.05)
 
         # after attack_models are done, train another model ontop of it.
-        attack_model_2 = MLPClassifier(hidden_layer_sizes=(50,25,1), activation='relu', solver='adam', learning_rate_init=0.001, max_iter=1000)
+        attack_model_2 = MLPClassifier(hidden_layer_sizes=(100, 50,25,1), activation='relu', solver='adam', learning_rate_init=0.001, max_iter=1000)
         
         # train attack_model 2 on the outputs of attack_models, max(p) & min(p) & avg(p) level 0,.., max(p) & min(p) & avg(p) level l. * max_tree * nClasses
         
         # (X, y)
-        D_train_attack2 = get_input_attack2(config, D_Train_Shadow, shadow_models, attack_models)
+        D_train_attack2 = None
+        if isSaved("D_train_attack2", config):
+            D_train_attack2 = retrieve("D_train_attack2", config)
+        else:
+            D_train_attack2 = get_input_attack2(config, D_Train_Shadow, shadow_models, attack_models)
+            save(D_train_attack2, "D_train_attack2", config)
 
         attack_model_2.fit(D_train_attack2[0], D_train_attack2[1])
         print(f"fitted attack model2 !")
@@ -328,8 +336,8 @@ def experiment2():
             gamma=0.5,
             alpha=0.0,
             learning_rate=0.3,
-            max_depth=5,
-            max_tree=9,
+            max_depth=8,
+            max_tree=20,
             nBuckets=25)
             logger = MyLogger(config).logger
             if rank == PARTY_ID.SERVER: logger.warning(config.prettyprint())
@@ -365,6 +373,8 @@ def experiment2():
             # saver.save_experiment_2_one_run(attack_model, )
     if rank == PARTY_ID.SERVER:
         save(all_data, name="all_data federated", config=config)
+    plot_experiment2(all_data)
+        
         # saver.create_plots_experiment_2(all_data)
 
 
@@ -374,59 +384,61 @@ def main():
     else:
         experimentNumber = int(sys.argv[1])
         print(f"running experiment {experimentNumber}!")
-        experiment2()
-    dataset = "healthcare"
-    config = Config(experimentName="tmp",
-           nameTest= dataset + "klein 20 trees",
-           model="normal",
-           dataset=dataset,
-           lam=0.1, # 0.1 10
-           gamma=0.5,
-           alpha=0.0,
-           learning_rate=0.3,
-           max_depth=8,
-           max_tree=20,
-           nBuckets=100)
-    logger = MyLogger(config).logger
-    if rank ==0 : logger.debug(config.prettyprint())
-    if config.model == "normal":
-        target_model = SFXGBoost(config, logger)
-        shadow_model = SFXGBoost(config, logger)
-        # shadow_model = xgb.XGBClassifier(ax_depth=config.max_depth, objective="multi:softmax", tree_method="approx",
-        #                 learning_rate=0.3, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=0, reg_lambda=config.lam)
-        # attack_model = xgb.XGBClassifier(tree_method="exact", objective='binary:logistic', max_depth=10, n_estimators=30, learning_rate=0.3)
-        # attack_model = DecisionTreeClassifier(max_depth=6,max_leaf_nodes=10)
-        attack_model = MLPClassifier(hidden_layer_sizes=(20,11,11), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
-    
-    # if isSaved(config.nameTest, config):
-    #     shadow_model = retrieve("model", config)
-    # TODO target_model = train_model()
-    # TODO shadow_model = train_model()
-    # that way I can save the model reuse it and apply different attack_models on it.
-    # TODO SFXGBoost().getGradients.
-    
-    # X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDataBase(config.dataset, POSSIBLE_PATHS)()
-    
-    # log_distribution(logger, X_train, y_train, y_test)
-    # target_model.fit(X_train, y_train, fName)
-    # D_Train_Shadow, D_Out_Shadow, D_Test = split_shadow((X_shadow, y_shadow))
-    # shadow_model.fit(D_Train_Shadow[0], D_Train_Shadow[1], fName)
+        # experiment2()
+    if True:
+        dataset = "healthcare"
+        config = Config(experimentName="tmp",
+            nameTest= dataset + "klein 20 trees",
+            model="normal",
+            dataset=dataset,
+            lam=0.1, # 0.1 10
+            gamma=0.5,
+            alpha=0.0,
+            learning_rate=0.3,
+            max_depth=8,
+            max_tree=20,
+            nBuckets=100)
+        logger = MyLogger(config).logger
+        if rank ==0 : logger.debug(config.prettyprint())
+        if config.model == "normal":
+            target_model = SFXGBoost(config, logger)
+            shadow_model = SFXGBoost(config, logger)
+            # shadow_model = xgb.XGBClassifier(ax_depth=config.max_depth, objective="multi:softmax", tree_method="approx",
+            #                 learning_rate=0.3, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=0, reg_lambda=config.lam)
+            # attack_model = xgb.XGBClassifier(tree_method="exact", objective='binary:logistic', max_depth=10, n_estimators=30, learning_rate=0.3)
+            # attack_model = DecisionTreeClassifier(max_depth=6,max_leaf_nodes=10)
+            attack_model = MLPClassifier(hidden_layer_sizes=(20,11,11), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
+        
+        # if isSaved(config.nameTest, config):
+        #     shadow_model = retrieve("model", config)
+        # TODO target_model = train_model()
+        # TODO shadow_model = train_model()
+        # that way I can save the model reuse it and apply different attack_models on it.
+        # TODO SFXGBoost().getGradients.
+        
+        # X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDataBase(config.dataset, POSSIBLE_PATHS)()
+        
+        # log_distribution(logger, X_train, y_train, y_test)
+        # target_model.fit(X_train, y_train, fName)
+        # D_Train_Shadow, D_Out_Shadow, D_Test = split_shadow((X_shadow, y_shadow))
+        # shadow_model.fit(D_Train_Shadow[0], D_Train_Shadow[1], fName)
 
-    # z, labels = create_D_attack_centralised(shadow_model, D_Train_Shadow, D_Out_Shadow)
+        # z, labels = create_D_attack_centralised(shadow_model, D_Train_Shadow, D_Out_Shadow)
 
-    # attack_model.fit(z, labels)
+        # attack_model.fit(z, labels)
 
-    # save_metrics_one_run(target_model, shadow_model, attack_model, (X_train, y_train), (X_test, y_test), D_Train_Shadow, (z, labels), D_Test)
+        # save_metrics_one_run(target_model, shadow_model, attack_model, (X_train, y_train), (X_test, y_test), D_Train_Shadow, (z, labels), D_Test)
 
-    X, y, X_test, y_test, y_pred_org, target_model, X_shadow, y_shadow, fName = test_global(config, logger, target_model, getDataBase(config.dataset, POSSIBLE_PATHS))
-    
-    preform_attack_centralised(config, logger, (X_shadow, y_shadow), target_model, shadow_model, attack_model, X, y, X_test, y_test, fName)
+        X, y, X_test, y_test, y_pred_org, target_model, X_shadow, y_shadow, fName = test_global(config, logger, target_model, getDataBase(config.dataset, POSSIBLE_PATHS))
+        
+        preform_attack_centralised(config, logger, (X_shadow, y_shadow), target_model, shadow_model, attack_model, X, y, X_test, y_test, fName)
 
-    if rank == 0:
-        from sklearn.metrics import accuracy_score
-        print(f"y_test = {np.argmax(y_test, axis=1)}")
-        print(f"y_pred_org = {y_pred_org}")
-        print(f"Accuracy federboost = {accuracy_score(np.argmax(y_test, axis=1), y_pred_org)}")
+        if rank == 0:
+            from sklearn.metrics import accuracy_score
+            print(f"y_test = {np.argmax(y_test, axis=1)}")
+            print(f"y_pred_org = {y_pred_org}")
+            print(f"Accuracy federboost = {accuracy_score(np.argmax(y_test, axis=1), y_pred_org)}")
 
-import cProfile
-cProfile.run('main()', sort='cumtime')
+# import cProfile
+# cProfile.run('main()', sort='cumtime')
+main()

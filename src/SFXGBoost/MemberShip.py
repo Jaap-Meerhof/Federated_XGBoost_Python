@@ -116,23 +116,20 @@ def get_train_Attackmodel_1(config:Config, logger:Logger, shadow_models, c, l, D
         # print(f"working on D_Train for shadow model {i} out of {len(D_Train_Shadow)}")
         # shadow_model = shadow_model[i]
         # print(f"shadow model {i} out of {len(shadow_models)}")
-        x, labels_train = f_random(D_Train_Shadow[i], D_Train_Shadow[(i+2) % len(D_Train_Shadow)], seed=i, take=100)  #
-        z = shadow_model.predict_proba(x)
+        # x, labels_train = f_random(D_Train_Shadow[i], D_Train_Shadow[(i+2) % len(D_Train_Shadow)], seed=i, take=100)  #
+        # z = shadow_model.predict_proba(x)
 
         for t in range(config.max_tree):
             # print(f"tree {t} out of {config.max_tree}")
             nodes = shadow_model.trees[c][t].root.get_nodes_depth(l)
             # print(nodes)
-            for node in nodes:
+            for nodepos, node in enumerate(nodes):
                 splittinginfo = []
                 parent:FLTreeNode = node.parent
                 curnode = node
-                i = 0
-                
+                x, labels_train = f_random(D_Train_Shadow[i], D_Train_Shadow[(i+2) % len(D_Train_Shadow)], seed=nodepos, take=100//len(nodes))  #
+                z = shadow_model.predict_proba(x)
                 while parent != None:
-                    i += 1
-                    if i > 1000:
-                        raise(Exception("loop in parent?"))
                     id = parent.splittingInfo.featureId
                     splitvalue = parent.splittingInfo.splitValue
                     splittinginfo.append(id)
@@ -199,8 +196,8 @@ def get_input_attack2(config:Config, D_Train_Shadow, models, attack_models):
                     input = np.column_stack((input, np.zeros( (x.shape[0],3) )))
                 else:
                     avg = np.average(all_p, axis=1).reshape((-1,1))
-                    min = np.min(all_p, axis=1, initial=0).reshape((-1,1))
-                    max = np.max(all_p, axis=1, initial=0).reshape((-1,1))
+                    min = np.min(all_p, axis=1).reshape((-1,1))
+                    max = np.max(all_p, axis=1).reshape((-1,1))
                     input = np.column_stack((input, avg, min , max))
         if input_attack_2 == []:
             input_attack_2 = input
@@ -259,9 +256,9 @@ def preform_attack_centralised(config:Config, logger:Logger, D_Shadow, target_mo
     Metric_attack_precision = precision_score(test_label, y_pred)
     print(f"DEBUG: precision attack: {Metric_attack_precision}")
     logger.warning(f"DEBUG: precision attack: {Metric_attack_precision}")
-    print(f"DEBUG: {y_pred}")
-    logger.warning("DEBUG: y_pred = {y_pred}")
-    logger.warning(f"DEBUG: f(x) target = {target_model.predict_proba(test_x)}")
+    # print(f"DEBUG: {y_pred}")
+    # logger.warning("DEBUG: y_pred = {y_pred}")
+    # logger.warning(f"DEBUG: f(x) target = {target_model.predict_proba(test_x)}")
 
 
 

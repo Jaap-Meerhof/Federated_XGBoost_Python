@@ -29,7 +29,7 @@ def plot_acc_one(data, labels, destination='plot.png', name='Sample Text', subte
     plt.show()
     plt.savefig(destination, format="jpeg", dpi=1200, bbox_inches='tight')
 
-def plot_experiment2(all_data:dict, destination="Plots/experiment2.jpeg"):
+def plot_experiment2(all_data:dict):
     """Plots accuracy and precision of the attack in one plot with two subplots
     and plots accuracy and precision of target model in one plot
 
@@ -38,17 +38,22 @@ def plot_experiment2(all_data:dict, destination="Plots/experiment2.jpeg"):
         all_data (_type_): _description_
         destination (str, optional): _description_. Defaults to "Plots/experiment2.jpeg".
     """
+    data_acc = {}
+    data_prec = {}
     for name, datasets in all_data.items():
+        data_acc[name] = []
+        data_prec[name] = []
         for dataset, metrics in datasets.items():
             precision_attack = metrics["precision test attack"]
             accuracy_attack = metrics["accuracy test attack"]
-            data[name].append(accuracy_attack)
-            data[name].append()
+            data_acc[name].append(accuracy_attack)
+            data_prec[name].append(precision_attack)
+        
     datasets = list(all_data[list(all_data.keys())[0]].keys())
-    data = {}
-    pass
+    plot_histogram(datasets, data_acc, title="accuracy attack", y_label="accuracy", destination="Plots/experiment2_acc.jpeg")
+    plot_histogram(datasets, data_acc, title="precision attack", y_label="precision", destination="Plots/experiment2_precision.jpeg")
 
-def plot_histogram(datasets, data, destination="Plots/experiment2.jpeg"):
+def plot_histogram(datasets, data, title="Sample text", y_label="y_label", destination="Plots/experiment2.jpeg"):
     """_summary_
     example
     datasets = ("Healthcare", "MNIST")
@@ -70,8 +75,8 @@ def plot_histogram(datasets, data, destination="Plots/experiment2.jpeg"):
         rects = ax.bar(x+offset, measurements, width, label=attribute)
         ax.bar_label(rects, padding=3)
         multiplier += 1
-    ax.set_ylabel('Precision')
-    ax.set_title("precision accross datasets")
+    ax.set_ylabel(y_label)
+    ax.set_title(title)
     ax.set_xticks(x+width, datasets)
     ax.legend(loc='upper left', ncol=3)
     ax.set_ylim(0, 1)

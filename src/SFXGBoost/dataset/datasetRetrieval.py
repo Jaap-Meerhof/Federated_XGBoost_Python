@@ -106,11 +106,17 @@ def getMNIST(paths, federated=False):
     return
 
 def getSynthetic(federated=False):
-    train_size = 50_000
-    test_size = 30_000
+    train_size = 2_000
+    test_size = 2_000
     random_state = 420
-    shadow_size = train_size*2    
-    
+    shadow_size = train_size*2   
+    n_shadows = 10
+
+    if federated:
+        shadow_size = train_size * n_shadows
+    else:
+        shadow_size = train_size * 2
+
     def returnfunc():
         """returns ndarrays with all X types and y where y is One Hot encoded
 
@@ -125,6 +131,12 @@ def getSynthetic(federated=False):
         fName = [str(i) for i in range(0, n_features)]
         X_train, X_test_shadow, y_train, y_test_shadow = train_test_split(X, y, train_size=train_size, test_size=test_size+shadow_size, random_state=random_state)
         X_shadow, X_test, y_shadow, y_test = train_test_split(X_test_shadow, y_test_shadow, train_size=shadow_size, test_size=test_size, random_state=random_state)
+        
+        if federated:
+            X_shadow = [X[i:i+train_size] for i in range(0, shadow_size, train_size)]
+            y_shadow = [y[i:i+train_size] for i in range(0, shadow_size, train_size)]
+            assert len(X_shadow) == n_shadows
+
         return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
     return returnfunc
 
@@ -180,7 +192,7 @@ def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/neh
         X = train.values[:, 1:17]
         y = makeOneHot(y = train.values[:, 17].reshape(-1,1))
 
-
+        # TODO shuffle dataset with seed
         X_train = X[:train_size]
         y_train = y[:train_size]
         
@@ -194,6 +206,8 @@ def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/neh
             begin = train_size+test_size
             X_shadow = [X[i:i+shadow_size] for i in range(begin, size-shadow_size, shadow_size)][:n_shadows]
             y_shadow = [y[i:i+shadow_size] for i in range(begin, size-shadow_size, shadow_size)][:n_shadows]
+            assert len(X_shadow) == n_shadows
+
         else:
             X_shadow = X[train_size+test_size:train_size+test_size+shadow_size]
             y_shadow = y[train_size+test_size:train_size+test_size+shadow_size]

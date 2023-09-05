@@ -167,6 +167,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
             G, H = None, None
             for t in range(self.config.max_tree):
                 G, H = getGradientHessians(np.argmax(y, axis=1), y_pred) # nUsers, nClasses
+                
                 G, H = np.array(G).T, np.array(H).T  # (nClasses, nUsers)
                 nodes = [[self.trees[c][t].root] for c in range(self.config.nClasses)]
                 
@@ -179,6 +180,8 @@ class SFXGBoost(SFXGBoostClassifierBase):
                             instances = node.instances
                             # print(instances)
                             gcn, hcn, dx = self.appendGradients(instances, G[c], H[c], orgData)
+                            print(len(f"DELME: {G[c]}"))
+                            print(len(f"DELME: gcn{gcn}"))
                             Gnodes[c].append(gcn)
                             Hnodes[c].append(hcn)
                     # send the gradients for every class's tree, the different nodes that have to be updated in that tree and the 
@@ -186,8 +189,8 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     comm.send((Gnodes,Hnodes), PARTY_ID.SERVER, tag=MSG_ID.RESPONSE_GRADIENTS)
                     splits = comm.recv(source=PARTY_ID.SERVER, tag=MSG_ID.SPLIT_UPDATE)
                     nodes = self.update_trees(nodes, splits, l) # also update Instances
-                for c in range(self.config.nClasses):
-                    FLVisNode(self.logger, self.trees[c][t].root).display(t)
+                # for c in range(self.config.nClasses):
+                #     FLVisNode(self.logger, self.trees[c][t].root).display(t)
                 update_pred = np.array([tree.predict(orgData) for tree in self.trees[:, t]]).T
                 y_pred += update_pred #* self.config.learning_rate
     
@@ -417,8 +420,8 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     tree = self.trees[c][treeID]
                     # Estimate gradient and update prediction
                     self.logger.warning(f"PREDICTION id {treeID}")
-                    b = FLVisNode(self.logger, tree.root)
-                    b.display(treeID)
+                    # b = FLVisNode(self.logger, tree.root)
+                    # b.display(treeID)
                     update_pred = tree.predict(testDataBase)
                     y_pred[:, c] += update_pred #* self.config.learning_rate
             return y_pred
