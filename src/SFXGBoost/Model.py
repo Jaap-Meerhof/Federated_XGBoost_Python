@@ -180,8 +180,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                             instances = node.instances
                             # print(instances)
                             gcn, hcn, dx = self.appendGradients(instances, G[c], H[c], orgData)
-                            print(len(f"DELME: {G[c]}"))
-                            print(len(f"DELME: gcn{gcn}"))
+                            # assert len(gcn) == 16
                             Gnodes[c].append(gcn)
                             Hnodes[c].append(hcn)
                     # send the gradients for every class's tree, the different nodes that have to be updated in that tree and the 

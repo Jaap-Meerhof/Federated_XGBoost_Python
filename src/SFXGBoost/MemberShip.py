@@ -168,12 +168,14 @@ def get_input_attack2(config:Config, D_Train_Shadow, models, attack_models):
     y_attack_2 = []
     for i, model in enumerate(models):
         print(f"busy with model {i} out of {len(models)}")
-        D_in = D_Train_Shadow[i]
         D_out = None
         if len(models) == 1: # only target model was given, no shadow models
+            D_in = D_Train_Shadow[i]
             D_out = D_Train_Shadow[1]
         else:
+            D_in = D_Train_Shadow[(i+1) % len(D_Train_Shadow)]
             D_out = D_Train_Shadow[(i+3) % len(D_Train_Shadow)]
+            
         x, labels_train = f_random(D_in, D_out)
         z = model.predict_proba(x)
         input = np.column_stack( (x, z) )
