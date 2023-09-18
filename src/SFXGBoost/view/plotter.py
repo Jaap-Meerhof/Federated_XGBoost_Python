@@ -3,6 +3,8 @@
 import matplotlib.pyplot as plt
 import matplotlib.axis as Axis
 import numpy as np
+from sklearn.metrics import roc_curve, roc_auc_score
+import matplotlib.pyplot as plt
 
 def plot_acc_one(data, labels, destination='plot.png', name='Sample Text', subtext='Sample Text sub'):
     """
@@ -26,7 +28,7 @@ def plot_acc_one(data, labels, destination='plot.png', name='Sample Text', subte
     plt.title = name
     plt.legend(loc='best')
     plt.grid(True)
-    plt.show()
+    # plt.show()
     plt.savefig(destination, format="jpeg", dpi=1200, bbox_inches='tight')
 
 def plot_experiment2(all_data:dict):
@@ -81,5 +83,39 @@ def plot_histogram(datasets, data, title="Sample text", y_label="y_label", desti
     ax.legend(loc='upper left', ncol=3)
     ax.set_ylim(0, 1)
     plt.savefig(destination, dpi=1200, format='jpeg')
-    plt.show()
+    # plt.show()
 
+def plot_auc(y_true, y_pred, destination="Plots/experiment2_AUC_attack2.jpeg"):
+    """plots a AUC curve that will also display the best threshold in the legend. 
+    thanks chatGPT for creating this 
+
+    Args:
+        y_true (np.array): Binary true values classifications 1 or 0
+        y_pred (np.array): binary probability scores from 0.0 to 1.0
+    """
+    from datetime import date
+    import time
+    day = date.today().strftime("%b-%d-%Y")
+
+    # curTime = round(time.time())
+    curTime = time.strftime("%H:%M", time.localtime())
+    destination = destination.replace(".jpeg", f"{day},{curTime}.jpeg")
+
+    fpr, tpr, thresholds = roc_curve(y_true, y_pred)
+
+    best_threshold_index = np.argmax(tpr - fpr)
+    best_threshold = thresholds[best_threshold_index]
+
+    # Calculate AUC
+    auc = roc_auc_score(y_true, y_pred)
+
+    # Plot ROC curve
+    plt.figure(figsize=(8, 6))
+    plt.plot(fpr, tpr, color='darkorange', lw=2, label='ROC curve (AUC = {:.2f})'.format(auc))
+    plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+    plt.scatter(fpr[best_threshold_index], tpr[best_threshold_index], c='red', marker='o', label=f'Best Threshold = {best_threshold:.2f}')
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver Operating Characteristic (ROC) Curve')
+    plt.legend(loc='lower right')
+    plt.savefig(destination, dpi=1200, format='jpeg')

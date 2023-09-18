@@ -136,7 +136,7 @@ def getSynthetic(federated=False):
             X_shadow = [X[i:i+train_size] for i in range(0, shadow_size, train_size)]
             y_shadow = [y[i:i+train_size] for i in range(0, shadow_size, train_size)]
             assert len(X_shadow) == n_shadows
-
+        
         return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
     return returnfunc
 
@@ -209,8 +209,8 @@ def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/neh
             assert len(X_shadow) == n_shadows
 
         else:
-            X_shadow = X[train_size+test_size:train_size+test_size+shadow_size]
-            y_shadow = y[train_size+test_size:train_size+test_size+shadow_size]
+            X_shadow = X[train_size+test_size:train_size+test_size+((shadow_size//2)*n_shadows)]
+            y_shadow = y[train_size+test_size:train_size+test_size+((shadow_size//2)*n_shadows)]
         return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
 
     # data = np.genfromtxt(paths + "AV_HealthcareAnalyticsII/train_data.csv")
@@ -219,7 +219,7 @@ def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/neh
 POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
-# X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getHealthcare(POSSIBLE_PATHS, True)()
+X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getHealthcare(POSSIBLE_PATHS, True)()
 # pass
 def getDataBase(dataBaseName, paths, federated=False):
     """After setting the database in the config, this will retrieve the database

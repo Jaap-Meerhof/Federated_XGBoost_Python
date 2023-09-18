@@ -99,7 +99,17 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     for Pi in range(1, comm.Get_size()):
                         
                         GH = comm.recv(source=Pi, tag=MSG_ID.RESPONSE_GRADIENTS) # receive [nClasses][nodes][]
-
+                        # print("----")
+                        # print(len(GH))
+                        # print(len(GH[0]))
+                        # print(len(GH[0][0]))
+                        if len(GH[0][0]) != 0:
+                            # print(len(GH[0][0][0]))
+                            if len(GH[0][0][0]) > 16:
+                                print(f"BIGGER THAN 16?! { len(GH[0][0][0])}")
+                        # print("----")
+                        
+                        # raise Exception("testing")
                         for c in range(self.config.nClasses):
                             for i, n in enumerate(nodes[c]):
                                 Gpi = GH[0]
@@ -109,13 +119,15 @@ class SFXGBoost(SFXGBoostClassifierBase):
                                 if Pi == 1:                        
                                     G[c][i] =  Gpi[c][i]  # I now save the gradients in the nodes, I don't really need this anymore
                                     H[c][i] =  Hpi[c][i]  # I now save the gradients in the nodes, I don't really need this anymore
-                                    n.G = Gpi[c][i]
-                                    n.H = Hpi[c][i]
+                                    n.G = G[c][i]
+                                    n.H = H[c][i]
                                 else:
-                                    G[c][i] += Gpi[c][i]  # I now save the gradients in the nodes, I don't really need this anymore
-                                    H[c][i] += Hpi[c][i]  # I now save the gradients in the nodes, I don't really need this anymore
-                                    n.G += Gpi[c][i]
-                                    n.H += Hpi[c][i]
+                                    G[c][i] = [ G[c][i][featureid] + Gpi[c][i][featureid] for featureid in range(len(Gpi[c][i])) ]
+                                    n.G = G[c][i]
+                                    H[c][i] = [ H[c][i][featureid] + Hpi[c][i][featureid] for featureid in range(len(Hpi[c][i])) ]
+                                    n.H = H[c][i]
+                                    if len(n.Gpi[0]) > 16:
+                                        print(f"wtf, {len(n.Gpi[0])}")
                     
                     splittingInfos = [[] for _ in range(self.config.nClasses)] 
                     # print("got gradients")
@@ -381,9 +393,21 @@ class SFXGBoost(SFXGBoostClassifierBase):
                 quantile = quantile.splitupHorizontal(start_end[rank-1][0], start_end[rank-1][1])
                 self.setData(quantile, fName, original, y_train_my)
 
+            if rank == PARTY_ID.SERVER:
+                splits = {}
+                for fName, quantileFeature in quantile.featureDict.items():
+                    splittingCandidates = quantileFeature.splittingCandidates
+                    splits[fName] = splittingCandidates
+                
+                for Pi in range(1, comm.Get_size()):
+                    comm.send(splits, Pi, MSG_ID.INITIAL_QUANTILE_SPLITS)
+            else:
+                splits = comm.recv(source=PARTY_ID.SERVER, tag=MSG_ID.INITIAL_QUANTILE_SPLITS)
+                self.setquantiles(splits)
+            
             if self.copied_quantiles != None:
                 self.setquantiles(self.copied_quantiles)
-
+            
             self.boost(initprobability)
             return self
     

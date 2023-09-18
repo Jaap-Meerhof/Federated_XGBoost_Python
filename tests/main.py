@@ -5,8 +5,7 @@ from SFXGBoost.MemberShip import preform_attack_centralised, split_shadow, creat
 from SFXGBoost.common.pickler import *
 import SFXGBoost.view.metric_save as saver
 from SFXGBoost.dataset.datasetRetrieval import getDataBase
-from SFXGBoost.view.plotter import plot_experiment2
-
+from SFXGBoost.view.plotter import plot_experiment2, plot_auc
 from typing import List
 import numpy as np
 from logging import Logger
@@ -71,7 +70,7 @@ def test_global(config:Config, logger:Logger, model: SFXGBoostClassifierBase, ge
     xgboostmodel = None
     if rank == PARTY_ID.SERVER:
         import xgboost as xgb
-        xgboostmodel = xgb.XGBClassifier(ax_depth=config.max_depth, objective="multi:softmax", tree_method="approx",
+        xgboostmodel = xgb.XGBClassifier(max_depth=config.max_depth, objective="multi:softmax", tree_method="approx",
                             learning_rate=0.3, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=0, reg_lambda=config.lam)
         xgboostmodel.fit(X_train, np.argmax(y_train, axis=1))
         from sklearn.metrics import accuracy_score
@@ -125,6 +124,7 @@ def concurrent(config, logger, c, shadow_models, D_Train_Shadow, attack_models):
         if not(isSaved(name, config)):
             D_Train_Attack, y = get_train_Attackmodel_1(config, logger, shadow_models, c, l, D_Train_Shadow) # TODO this is too slow, multithread?
         attack_models[c][l] = retrieveorfit(attack_models[c][l], f"Attack_model {c},{l}", config, D_Train_Attack, np.array(y))
+        save((D_Train_Attack, np.array(y)), f"D_Train_Attack_{c},{l}", config) #tmp
     return c, attack_models[c]
 
 def concurrent_multi(c, config, logger, shadow_models, D_Train_Shadow, attack_models):
@@ -180,7 +180,9 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
         # TODO create test data for attack models! :)
         # for c in tqdm(range(config.nClasses), desc="> training attack models"):
         # attack_models[c][l] = MLPClassifier(hidden_layer_sizes=(100,50,1), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
-        attack_models = [ [MLPClassifier(hidden_layer_sizes=(100,50,1), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000) for l in range(config.max_depth)] for c in range(config.nClasses)]
+        # attack_models = [ [MLPClassifier(hidden_layer_sizes=(100,50,1), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000) for l in range(config.max_depth)] for c in range(config.nClasses)]
+        attack_models = [ [xgb.XGBClassifier(max_depth=12, objective="binary:logistic", tree_method="approx",
+                        learning_rate=0.3, n_estimators=20, gamma=0.5, reg_alpha=0.0, reg_lambda=0.1) for l in range(config.max_depth)] for c in range(config.nClasses)]
 
         with ThreadPoolExecutor(max_workers=6) as executor:
             future_D_Train_Attack = [executor.submit(concurrent, config, logger, c, deepcopy(shadow_models), deepcopy(D_Train_Shadow), deepcopy(attack_models)) for c in range(config.nClasses)  ]
@@ -215,8 +217,9 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
                 # attack_models[c][l].fit(D_train_Attack[0][c][l], D_train_Attack[1], num_epochs=1000, lr=0.05)
 
         # after attack_models are done, train another model ontop of it.
-        attack_model_2 = MLPClassifier(hidden_layer_sizes=(100, 50,25,1), activation='relu', solver='adam', learning_rate_init=0.001, max_iter=1000)
-        
+        # attack_model_2 = MLPClassifier(hidden_layer_sizes=(100, 50,25,1), activation='relu', solver='adam', learning_rate_init=0.001, max_iter=1000)
+        attack_model_2 = xgb.XGBClassifier(max_depth=12, objective="binary:logistic", tree_method="approx",
+                            learning_rate=0.3, n_estimators=20, gamma=0.5, reg_alpha=0.0, reg_lambda=0.1)
         # train attack_model 2 on the outputs of attack_models, max(p) & min(p) & avg(p) level 0,.., max(p) & min(p) & avg(p) level l. * max_tree * nClasses
         
         # (X, y)
@@ -249,7 +252,9 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
         print(f'accuracy attack = {data["accuracy test attack"]}')
         logger.warning(f'precision attack= {data["precision test attack"]}')
         print(f'precision attack= {data["precision test attack"]}')
-
+        probas = attack_model_2.predict_proba(D_test_attack2[0])[:,0]
+        print(np.shape(probas))
+        plot_auc( labels_test , probas )
     return data
 
 def retrieve_data(target_model, shadow_model, attack_model, X_train, y_train, X_test, y_test, z_test, labels_test): # TODO put this in SFXGBoost
@@ -316,13 +321,58 @@ def create_attack_model_federated(config:Config, G:list) -> list:
             # TODO create one nn per depth
     return Attack_Models
 
+def experiment1():
+    logger = MyLogger(config).logger
+    seed = 10
+    datasets = ["healthcare"]
+    targetArchitectures = ["XGBoost", "FederBoost-central"]
+    all_data = {} # all_data["XGBoost"]["healthcore"]["accuarcy train shadow"]
+    # tested_param = "gamma"
+    # tested_param_vals = [0.1, 0.5, 0.7, 0.9, 1]
+    to_be_tested = {"gamma":[0.1, 0.5, 0.7, 0.9, 1], 
+                    "max_depth":[5, 8, 12]}
+
+    all_data = {} # all_data["XGBoost"]["healthcore"]["accuarcy train shadow"]
+
+    for targetArchitecture in targetArchitectures:
+        all_data[targetArchitecture] = {}
+        for dataset in datasets:
+            all_data[targetArchitecture][dataset] = {}
+            for parameter_name, params in to_be_tested.items():
+                all_data[targetArchitecture][dataset][parameter_name] = {}
+                for val in params:
+                    config = Config(experimentName = "experiment 1",
+                            nameTest= dataset + " test",
+                            model="normal",
+                            dataset=dataset,
+                            lam=0.1, # 0.1 10
+                            gamma=0.5,
+                            alpha=0.0,
+                            learning_rate=0.3,
+                            max_depth=8,
+                            max_tree=20,
+                            nBuckets=35)
+                    setattr(config, parameter_name, val)  # update the config with the to be tested value
+                    target_model = SFXGBoost(config, logger)
+                    shadow_model = SFXGBoost(config, logger)
+                    # attack_model = MLPClassifier(hidden_layer_sizes=(20,11,11), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
+                    attack_model = xgb.XGBClassifier(max_depth=12, objective="binary:logistic", tree_method="approx",
+                                    learning_rate=0.3, n_estimators=20, gamma=0.5, reg_alpha=0.0, reg_lambda=0.1)
+                    data = get_data_attack_centrally(target_model, shadow_model, attack_model, config, logger)
+                    if rank == PARTY_ID.SERVER:
+                        all_data[targetArchitecture][dataset][parameter_name][val] = data
+    table_experiment1(all_data)
+
 def experiment2():
     seed = 10
 
     # datasets = ["healthcare", "MNIST", "synthetic", "Census", "DNA", "Purchase-10", "Purhase-20", "Purchase-50", "Purchase-100"]
+    # datasets = ["synthetic", "healthcare"]
     datasets = ["healthcare"]
 
     targetArchitectures = ["XGBoost", "FederBoost-central", "FederBoost-federated"]
+    # targetArchitectures = ["FederBoost-federated"]
+
     all_data = {} # all_data["XGBoost"]["healthcore"]["accuarcy train shadow"]
 
     for targetArchitecture in targetArchitectures:
@@ -338,7 +388,7 @@ def experiment2():
             learning_rate=0.3,
             max_depth=8,
             max_tree=20,
-            nBuckets=25)
+            nBuckets=35)
             logger = MyLogger(config).logger
             if rank == PARTY_ID.SERVER: logger.warning(config.prettyprint())
 
@@ -347,7 +397,9 @@ def experiment2():
             if targetArchitecture == "FederBoost-central":
                 target_model = SFXGBoost(config, logger)
                 shadow_model = SFXGBoost(config, logger)
-                attack_model = MLPClassifier(hidden_layer_sizes=(20,11,11), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
+                # attack_model = MLPClassifier(hidden_layer_sizes=(20,11,11), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
+                attack_model = xgb.XGBClassifier(max_depth=12, objective="binary:logistic", tree_method="approx",
+                                learning_rate=0.3, n_estimators=20, gamma=0.5, reg_alpha=0.0, reg_lambda=0.1)
                 data = get_data_attack_centrally(target_model, shadow_model, attack_model, config, logger)
                 if rank == PARTY_ID.SERVER:
                     all_data[targetArchitecture][dataset] = data
@@ -359,11 +411,13 @@ def experiment2():
                 if rank == PARTY_ID.SERVER:
                     all_data[targetArchitecture][dataset] = data
             elif targetArchitecture == "XGBoost" and rank == PARTY_ID.SERVER:  # define neural network
-                target_model = xgb.XGBClassifier(ax_depth=config.max_depth, objective="multi:softmax", tree_method="approx", num_class=config.nClasses,
+                target_model = xgb.XGBClassifier(max_depth=config.max_depth, objective="multi:softmax", tree_method="approx", num_class=config.nClasses,
                         learning_rate=config.learning_rate, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=config.alpha, reg_lambda=config.lam)
-                shadow_model = xgb.XGBClassifier(ax_depth=config.max_depth, objective="multi:softmax", tree_method="approx", num_class=config.nClasses,
+                shadow_model = xgb.XGBClassifier(max_depth=config.max_depth, objective="multi:softmax", tree_method="approx", num_class=config.nClasses,
                         learning_rate=config.learning_rate, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=config.alpha, reg_lambda=config.lam)
-                attack_model = MLPClassifier(hidden_layer_sizes=(20,11,11), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
+                # attack_model = MLPClassifier(hidden_layer_sizes=(20,11,11), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
+                attack_model = xgb.XGBClassifier(max_depth=12, objective="binary:logistic", tree_method="approx",
+                            learning_rate=0.3, n_estimators=20, gamma=0.5, reg_alpha=0.0, reg_lambda=0.1)
                 data = get_data_attack_centrally(target_model, shadow_model, attack_model, config, logger)
                 all_data[targetArchitecture][dataset] = data
             else:
@@ -384,8 +438,11 @@ def main():
     else:
         experimentNumber = int(sys.argv[1])
         print(f"running experiment {experimentNumber}!")
-        # experiment2()
-    if True:
+        if experimentNumber == 1:
+            experiment1()
+        elif experimentNumber == 2:
+            experiment2()
+    if False:
         dataset = "healthcare"
         config = Config(experimentName="tmp",
             nameTest= dataset + "klein 20 trees",
@@ -403,7 +460,7 @@ def main():
         if config.model == "normal":
             target_model = SFXGBoost(config, logger)
             shadow_model = SFXGBoost(config, logger)
-            # shadow_model = xgb.XGBClassifier(ax_depth=config.max_depth, objective="multi:softmax", tree_method="approx",
+            # shadow_model = xgb.XGBClassifier(max_depth=config.max_depth, objective="multi:softmax", tree_method="approx",
             #                 learning_rate=0.3, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=0, reg_lambda=config.lam)
             # attack_model = xgb.XGBClassifier(tree_method="exact", objective='binary:logistic', max_depth=10, n_estimators=30, learning_rate=0.3)
             # attack_model = DecisionTreeClassifier(max_depth=6,max_leaf_nodes=10)

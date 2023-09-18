@@ -19,7 +19,7 @@ class QuantiledFeature(FeatureData):
     
     def __init__(self, name, dataVector, splittingMatrix = None, splittingCandidates = None) -> None:
         super().__init__(name, dataVector)
-        if (splittingMatrix is None) or (splittingCandidates is None):
+        if (splittingCandidates is None):
             self.splittingMatrix, self.splittingCandidates = QuantiledFeature.quantile(self.data, QuantileParam) 
         else:
             self.splittingMatrix, self.splittingCandidates = splittingMatrix, splittingCandidates

@@ -75,7 +75,7 @@ def create_D_attack_centralised(shadow_model_s, D_Train_Shadow, D_Out_Shadow):
     # z = np.take(z, z_top_indices) # take top 3
     return z, labels
 
-def get_info_node(x, z, node):
+def get_info_node(x, z=None, node=None):
     # for node in nodes:
     splittinginfo = []
     parent:FLTreeNode = node.parent
@@ -83,7 +83,7 @@ def get_info_node(x, z, node):
     i = 0
     if parent is None: # root node!
         flattened = flatten_list([node.G, node.H])  # flatten the information
-        input = np.column_stack((x, z, np.tile(flattened, ((x.shape[0]), 1)) ))
+        input = np.column_stack((x, np.tile(flattened, ((x.shape[0]), 1)) ))
         return input
     while parent != None:
         i += 1
@@ -105,7 +105,7 @@ def get_info_node(x, z, node):
         parent = parent.parent
 
     flattened = flatten_list([splittinginfo , node.G, node.H])  # flatten the information
-    input = np.column_stack((x, z, np.tile(flattened, ((x.shape[0]), 1)) ))  # copy the flattened information for every x, f(x)=z
+    input = np.column_stack((x, np.tile(flattened, ((x.shape[0]), 1)) ))  # copy the flattened information for every x, f(x)=z
     return input
 
 def get_train_Attackmodel_1(config:Config, logger:Logger, shadow_models, c, l, D_Train_Shadow): # TODO make faster :(
@@ -127,7 +127,7 @@ def get_train_Attackmodel_1(config:Config, logger:Logger, shadow_models, c, l, D
                 splittinginfo = []
                 parent:FLTreeNode = node.parent
                 curnode = node
-                x, labels_train = f_random(D_Train_Shadow[i], D_Train_Shadow[(i+2) % len(D_Train_Shadow)], seed=nodepos, take=100//len(nodes))  #
+                x, labels_train = f_random(D_Train_Shadow[i], D_Train_Shadow[(i+2) % len(D_Train_Shadow)], seed=nodepos, take=30)  #
                 z = shadow_model.predict_proba(x)
                 while parent != None:
                     id = parent.splittingInfo.featureId
@@ -147,14 +147,13 @@ def get_train_Attackmodel_1(config:Config, logger:Logger, shadow_models, c, l, D
 
                 flattened = flatten_list([splittinginfo , node.G, node.H])  # flatten the information
                 # todo only take 100
-                input = np.column_stack((x, z, np.tile(flattened, (x.shape[0] , 1))))  # copy the flattened information for every x, f(x)=z
+                input = np.column_stack((x, np.tile(flattened, (x.shape[0] , 1))))  # copy the flattened information for every x, f(x)=z
                 y.extend(labels_train)
 
                 if not D_Train_Attack is None: 
                     D_Train_Attack = np.vstack((D_Train_Attack, input))
                     # print(sys.getsizeof(D_Train_Attack))
                     # print(f"shape: {D_Train_Attack.shape[0]}")
-
                 else:
                     D_Train_Attack = input
 
@@ -166,15 +165,15 @@ def get_train_Attackmodel_1(config:Config, logger:Logger, shadow_models, c, l, D
 def get_input_attack2(config:Config, D_Train_Shadow, models, attack_models):            
     input_attack_2 = []
     y_attack_2 = []
-    for i, model in enumerate(models):
-        print(f"busy with model {i} out of {len(models)}")
+    for a, model in enumerate(models):
+        print(f"busy with model {a} out of {len(models)}")
         D_out = None
         if len(models) == 1: # only target model was given, no shadow models
-            D_in = D_Train_Shadow[i]
+            D_in = D_Train_Shadow[0]
             D_out = D_Train_Shadow[1]
         else:
-            D_in = D_Train_Shadow[(i+1) % len(D_Train_Shadow)]
-            D_out = D_Train_Shadow[(i+3) % len(D_Train_Shadow)]
+            D_in = D_Train_Shadow[(a+1) % len(D_Train_Shadow)]
+            D_out = D_Train_Shadow[(a+3) % len(D_Train_Shadow)]
             
         x, labels_train = f_random(D_in, D_out)
         z = model.predict_proba(x)
@@ -187,26 +186,31 @@ def get_input_attack2(config:Config, D_Train_Shadow, models, attack_models):
                     if nodes == []:
                         continue
                     for node in nodes:
-                        node_params = get_info_node(x,z,node) #size = 2000
+                        node_params = get_info_node(x,None,node) #size = 2000
                         list_of_outputs = attack_models[c][l].predict_proba(node_params)
                         if all_p is None:
                             all_p = list_of_outputs
                         else:
                             all_p = np.column_stack((all_p, list_of_outputs)) # all probas for every x
                 if all_p is None:
-                    print(f"Warning, at depth {l} of model {i} no nodes were found accross all trees of class {c}?!")
-                    input = np.column_stack((input, np.zeros( (x.shape[0],3) )))
+                    print(f"Warning, at depth {l} of model {a} no nodes were found accross all trees of class {c}?!")
+                    # input = np.column_stack((input, np.zeros( (x.shape[0],3) )))
+                    input = np.zeros( (x.shape[0],3) )
+
                 else:
                     avg = np.average(all_p, axis=1).reshape((-1,1))
                     min = np.min(all_p, axis=1).reshape((-1,1))
                     max = np.max(all_p, axis=1).reshape((-1,1))
-                    input = np.column_stack((input, avg, min , max))
-        if input_attack_2 == []:
-            input_attack_2 = input
-            y_attack_2 = labels_train
-        else:
-            input_attack_2 = np.vstack((input_attack_2, input))
-            y_attack_2 = np.hstack((y_attack_2, labels_train))
+                    # input = np.column_stack((input, avg, min , max))
+                    input = np.column_stack((avg, min , max))
+
+                if input_attack_2 == []:
+                    input_attack_2 = input
+                    y_attack_2 = labels_train
+                else:
+                    input_attack_2 = np.vstack((input_attack_2, input))
+                    y_attack_2 = np.hstack((y_attack_2, labels_train))
+                    
     return (input_attack_2, y_attack_2)
 
 def predict_federated(config:Config, attack_models, Attack_Model_2, D_test_Attack):
