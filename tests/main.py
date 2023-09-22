@@ -92,7 +92,7 @@ POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
 
-def get_data_attack_centrally(target_model, shadow_model, attack_model, config, logger):
+def get_data_attack_centrally(target_model, shadow_model, attack_model, config, logger, name="sample"):
     # TODO keep track of rank 
     X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDataBase(config.dataset, POSSIBLE_PATHS)()
     log_distribution(logger, X_train, y_train, y_test)
@@ -110,6 +110,8 @@ def get_data_attack_centrally(target_model, shadow_model, attack_model, config, 
         z_test, labels_test = create_D_attack_centralised(target_model, (X_train, y_train), (X_test, y_test))
         
         data = retrieve_data(target_model, shadow_model, attack_model, X_train, y_train, X_test, y_test, z_test, labels_test)
+        # plot_auc(labels_test, attack_model.predict_proba(z_test)[:, 1], f"Plots/experiment2_centralised_AUC_{name}.jpeg")
+
     return data
 
 from concurrent.futures import ThreadPoolExecutor
@@ -119,12 +121,15 @@ def concurrent(config, logger, c, shadow_models, D_Train_Shadow, attack_models):
     for l in range(config.max_depth):
         print(f"c={c} l={l}")
         name = f"Attack_model {c},{l}"
-        D_Train_Attack, y = None, None
-        attack_models[c][l] = MLPClassifier(hidden_layer_sizes=(100,50,1), activation='relu', solver='adam', learning_rate_init=0.001, max_iter=1000)
+        X_Train_Attack, y = None, None
         if not(isSaved(name, config)):
-            D_Train_Attack, y = get_train_Attackmodel_1(config, logger, shadow_models, c, l, D_Train_Shadow) # TODO this is too slow, multithread?
-        attack_models[c][l] = retrieveorfit(attack_models[c][l], f"Attack_model {c},{l}", config, D_Train_Attack, np.array(y))
-        save((D_Train_Attack, np.array(y)), f"D_Train_Attack_{c},{l}", config) #tmp
+            X_Train_Attack, y = get_train_Attackmodel_1(config, logger, shadow_models, c, l, D_Train_Shadow) # TODO this is too slow, multithread?
+        else:
+            D_Train_Attack = retrieve(f"D_Train_Attack_{c},{l}", config)
+            X_Train_Attack = D_Train_Attack[0]
+            y = D_Train_Attack[1]
+        attack_models[c][l] = retrieveorfit(attack_models[c][l], f"Attack_model {c},{l}", config, X_Train_Attack, np.array(y))
+        save((X_Train_Attack, np.array(y)), f"D_Train_Attack_{c},{l}", config) #tmp
     return c, attack_models[c]
 
 def concurrent_multi(c, config, logger, shadow_models, D_Train_Shadow, attack_models):
@@ -156,9 +161,9 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
 
     target_model = retrieveorfit(target_model, "target_model", config, X_train, y_train, fName)
     if rank != PARTY_ID.SERVER:
-        quantiles = target_model.copyquantiles()  # TODO implement
+        quantiles = target_model.copyquantiles()
         for shadow_model in shadow_models:
-            shadow_model.copied_quantiles = quantiles  # TODO implement
+            shadow_model.copied_quantiles = quantiles  
     # D_Train_Shadow, D_Out_Shadow = split_shadow((X_shadow, y_shadow)) # TODO split shadow model to be same size as X_train
     # TODO split shadow for federated such that there is a list for all. D_Out does not have to exist in federated
     n_shadows = len(X_shadow)
@@ -182,7 +187,7 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
         # attack_models[c][l] = MLPClassifier(hidden_layer_sizes=(100,50,1), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
         # attack_models = [ [MLPClassifier(hidden_layer_sizes=(100,50,1), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000) for l in range(config.max_depth)] for c in range(config.nClasses)]
         attack_models = [ [xgb.XGBClassifier(max_depth=12, objective="binary:logistic", tree_method="approx",
-                        learning_rate=0.3, n_estimators=20, gamma=0.5, reg_alpha=0.0, reg_lambda=0.1) for l in range(config.max_depth)] for c in range(config.nClasses)]
+                        learning_rate=0.3, n_estimators=50, gamma=0.5, reg_alpha=0.0, reg_lambda=0.1) for l in range(config.max_depth)] for c in range(config.nClasses)]
 
         with ThreadPoolExecutor(max_workers=6) as executor:
             future_D_Train_Attack = [executor.submit(concurrent, config, logger, c, deepcopy(shadow_models), deepcopy(D_Train_Shadow), deepcopy(attack_models)) for c in range(config.nClasses)  ]
@@ -219,7 +224,7 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
         # after attack_models are done, train another model ontop of it.
         # attack_model_2 = MLPClassifier(hidden_layer_sizes=(100, 50,25,1), activation='relu', solver='adam', learning_rate_init=0.001, max_iter=1000)
         attack_model_2 = xgb.XGBClassifier(max_depth=12, objective="binary:logistic", tree_method="approx",
-                            learning_rate=0.3, n_estimators=20, gamma=0.5, reg_alpha=0.0, reg_lambda=0.1)
+                            learning_rate=0.3, n_estimators=50, gamma=0.5, reg_alpha=0.0, reg_lambda=0.1)
         # train attack_model 2 on the outputs of attack_models, max(p) & min(p) & avg(p) level 0,.., max(p) & min(p) & avg(p) level l. * max_tree * nClasses
         
         # (X, y)
@@ -234,7 +239,13 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
         print(f"fitted attack model2 !")
         # predict on attack_model -> attack_model_2 -> asses on D_test_Attack
         D_test_attack2 = (X_train, y_train), (X_test, y_test)
-        D_test_attack2 = get_input_attack2(config, D_test_attack2, [target_model], attack_models)
+        # D_test_attack2 = get_input_attack2(config, D_test_attack2, [target_model], attack_models)
+        if isSaved("D_test_attack2", config):
+            D_test_attack2 = retrieve("D_test_attack2", config)
+        else:
+            D_test_attack2 = get_input_attack2(config, D_test_attack2, [target_model], attack_models)
+            save(D_test_attack2, "D_test_attack2", config)
+
         y_pred = attack_model_2.predict(D_test_attack2[0])
         z_test = D_test_attack2[0]
         labels_test = D_test_attack2[1]
@@ -333,7 +344,8 @@ def experiment1():
                     "max_depth":[5, 8, 12]}
 
     all_data = {} # all_data["XGBoost"]["healthcore"]["accuarcy train shadow"]
-
+    plot_auc(y_tre, y_pred, "Plots/experiment1_AUC.jpeg")
+    
     for targetArchitecture in targetArchitectures:
         all_data[targetArchitecture] = {}
         for dataset in datasets:
@@ -388,7 +400,8 @@ def experiment2():
             learning_rate=0.3,
             max_depth=8,
             max_tree=20,
-            nBuckets=35)
+            nBuckets=35,
+            save=True)
             logger = MyLogger(config).logger
             if rank == PARTY_ID.SERVER: logger.warning(config.prettyprint())
 
@@ -400,7 +413,7 @@ def experiment2():
                 # attack_model = MLPClassifier(hidden_layer_sizes=(20,11,11), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
                 attack_model = xgb.XGBClassifier(max_depth=12, objective="binary:logistic", tree_method="approx",
                                 learning_rate=0.3, n_estimators=20, gamma=0.5, reg_alpha=0.0, reg_lambda=0.1)
-                data = get_data_attack_centrally(target_model, shadow_model, attack_model, config, logger)
+                data = get_data_attack_centrally(target_model, shadow_model, attack_model, config, logger, targetArchitecture)
                 if rank == PARTY_ID.SERVER:
                     all_data[targetArchitecture][dataset] = data
             elif targetArchitecture == "FederBoost-federated":
@@ -418,7 +431,7 @@ def experiment2():
                 # attack_model = MLPClassifier(hidden_layer_sizes=(20,11,11), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
                 attack_model = xgb.XGBClassifier(max_depth=12, objective="binary:logistic", tree_method="approx",
                             learning_rate=0.3, n_estimators=20, gamma=0.5, reg_alpha=0.0, reg_lambda=0.1)
-                data = get_data_attack_centrally(target_model, shadow_model, attack_model, config, logger)
+                data = get_data_attack_centrally(target_model, shadow_model, attack_model, config, logger, targetArchitecture)
                 all_data[targetArchitecture][dataset] = data
             else:
                 continue

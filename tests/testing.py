@@ -12,7 +12,13 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 
 # 10,5 works really well. 
-D_train = pickle.load(open('Saves/healthcare test_rank_0/D_Train_Attack_7,7.p', 'rb'))
+shadow = pickle.load(open('Saves/healthcare test_rank_1/healthcare_shadow_model_0.p', 'rb'))
+D_train = pickle.load(open('Saves/healthcare test_rank_0/healthcare_D_Train_Attack_0,7.p', 'rb'))
+
+D_test = pickle.load(open('Saves/healthcare test_rank_0/healthcare_D_test_attack2.p', 'rb'))
+
+tmp = pickle.load(open('Saves/healthcare test_rank_0/healthcare_D_train_attack2.p', 'rb'))
+
 x = 1
 # D_train = pickle.load(open('Saves/healthcare test_rank_0/D_train_attack2.p', 'rb'))
 x=1
@@ -31,50 +37,58 @@ config = Config(experimentName = "experiment 2",
             alpha=0.2,
             learning_rate=0.3,
             max_depth=15,
-            max_tree=20,
+            max_tree=30,
             nBuckets=35)
 
 attack_model_2 = xgb.XGBClassifier(max_depth=config.max_depth, objective="binary:logistic", tree_method="approx",
                         learning_rate=config.learning_rate, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=config.alpha, reg_lambda=config.lam)
 # attack_model_2 = MLPClassifier(hidden_layer_sizes=(1000,100), activation='relu', solver='adam', learning_rate_init=0.001, max_iter=1000)
 
-def tmp(x_test):
-    x_test2 = x_test[:, 0:16]
-    x_test3 = x_test[:, 27:]
-    x_test_1 = np.concatenate((x_test2, x_test3), axis=1)
-    return x_test_1
+def tmp(x_test, y =None):
+    # x_test2 = x_test[:, 0:16]
+    # x_test3 = x_test[:, 27:]
+    # x_test_1 = np.concatenate((x_test2, x_test3), axis=1)
+    # indices = np.lexsort(x_test[:, :16].T)
+    # x_test = x_test[indices]
+    # y= y[indices]
+    return x_test, y
 
-
+new_x, new_y = tmp(D_train[0], D_train[1])
+D_train = (new_x, new_y)
+if len(D_train[0]) < 29460:
+    raise Exception("D_train to small")
 x = D_train[0][0:30_000]
 y = D_train[1][0:30_000]
-x_test = D_train[0][30_000:40_000]
-y_test = D_train[1][30_000:40_000]
-
-x_new = tmp(x)
+x_test = D_train[0][30_000:38_460]
+y_test = D_train[1][30_000:38_460]
 # x_new = x
 # x_new = x[:, 16:27]
 
-x_test_2 = tmp(x_test)
 # x_test_2 = x_test
 # x_test_2 = x_test[:, 16:27]
-
+from keras.layers import LeakyReLU
 model = keras.Sequential([
-    keras.layers.Dense(64, activation='relu', input_shape=(x_new.shape[1],)),
-    keras.layers.Dense(64, activation='relu', input_shape=(x_new.shape[1],)),
+    keras.layers.Dense(500, activation=LeakyReLU(alpha=0.01), input_shape=(x.shape[1],)),
+    keras.layers.Dense(500, activation=LeakyReLU(alpha=0.01), input_shape=(500,)),
+    keras.layers.Dense(500, activation=LeakyReLU(alpha=0.01), input_shape=(500,)),
+    keras.layers.Dense(300, activation=LeakyReLU(alpha=0.01), input_shape=(500,)),
+    keras.layers.Dense(64, activation=LeakyReLU(alpha=0.01), input_shape=(300,)),
 
     keras.layers.Dense(1, activation='sigmoid')
 ])
+optimiser = keras.optimizers.Adam(learning_rate=0.01)
 model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-model.fit(x_new, y, epochs=5, batch_size=16)
-attack_model_2.fit(x_new, y)
+model.fit(x, y, epochs=1, batch_size=50)
+attack_model_2.fit(x, y)
+import matplotlib.pyplot as plt
+from xgboost import plot_tree
+plot_tree(attack_model_2)
+plt.show()
 
+y_pred_proba = attack_model_2.predict_proba(x_test)
+y_pred_proba_nn = model.predict(x_test)
 
-
-
-y_pred_proba = attack_model_2.predict_proba(x_test_2)
-y_pred_proba_nn = model.predict(x_test_2)
-
-y_pred = attack_model_2.predict(x_test_2)
+y_pred = attack_model_2.predict(x_test)
 
 tmp = y_pred_proba[:,0]
 plot_auc(y_test, y_pred_proba[:,0], "Plots/testing1.jpeg")

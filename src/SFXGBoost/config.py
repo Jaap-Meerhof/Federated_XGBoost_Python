@@ -13,7 +13,8 @@ np.set_printoptions(linewidth=np.inf)
 np.set_printoptions(precision=4, suppress=True)
 
 class Config:
-    def __init__(self, experimentName:str, nameTest:str, model:str, dataset:str, lam:float, gamma:float, alpha:float, learning_rate:float, max_depth:int, max_tree:int, nBuckets:int):
+    def __init__(self, experimentName:str, nameTest:str, model:str, dataset:str, lam:float, gamma:float, 
+                 alpha:float, learning_rate:float, max_depth:int, max_tree:int, nBuckets:int, save:bool=True):
         self.experimentName = experimentName
         self.nameTest = nameTest
         self.model = model
@@ -26,6 +27,7 @@ class Config:
         self.max_tree = max_tree
         self.nClasses, self.nFeatures = getConfigParams(self.dataset)
         self.nBuckets = nBuckets
+        self.save = save
 
         self.save_location= "./Saves/" + nameTest + "_rank_" + str(rank)
 

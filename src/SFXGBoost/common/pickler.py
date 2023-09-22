@@ -11,7 +11,8 @@ def save(var:any, name:str, config:Config):
 
     # if not os.path.exists(config.save_location):
     #     os.mkdir(config.save_location)
-    pickle.dump(var, open(config.save_location + "/"  + name + '.p', 'wb'))
+    if config.save:
+        pickle.dump(var, open(config.save_location + "/"  + name + '.p', 'wb'))
 
 def retrieve(name:str, config:Config):
     return pickle.load(open(config.save_location + "/" + name + '.p', 'rb'))

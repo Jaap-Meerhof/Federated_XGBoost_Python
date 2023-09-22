@@ -24,7 +24,8 @@ def check_mul_paths_csv(filename, paths):
             return pd.read_csv(path + filename + ".csv")
     raise FileNotFoundError("File not found in all paths :(")
 
-def take_and_remove_items(arr, size): #sshoutout to Chat-gpt
+def take_and_remove_items(arr, size, seed=0): #sshoutout to Chat-gpt
+    np.random.seed(seed)
     indices = np.random.choice(len(arr), size,replace=False )
     selected_items = np.take(arr, indices, axis=0)
     arr = np.delete(arr, indices, axis=0)
@@ -219,7 +220,7 @@ def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/neh
 POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
-X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getHealthcare(POSSIBLE_PATHS, True)()
+# X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getHealthcare(POSSIBLE_PATHS, True)()
 # pass
 def getDataBase(dataBaseName, paths, federated=False):
     """After setting the database in the config, this will retrieve the database
