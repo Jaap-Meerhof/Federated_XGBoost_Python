@@ -442,7 +442,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                 for c in range(self.config.nClasses):
                     tree = self.trees[c][treeID]
                     # Estimate gradient and update prediction
-                    self.logger.warning(f"PREDICTION id {treeID}")
+                    # self.logger.warning(f"PREDICTION id {treeID}")
                     # b = FLVisNode(self.logger, tree.root)
                     # b.display(treeID)
                     update_pred = tree.predict(testDataBase)

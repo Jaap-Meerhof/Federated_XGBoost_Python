@@ -6,6 +6,7 @@ from SFXGBoost.common.pickler import *
 import SFXGBoost.view.metric_save as saver
 from SFXGBoost.dataset.datasetRetrieval import getDataBase
 from SFXGBoost.view.plotter import plot_experiment2, plot_auc
+from SFXGBoost.view.table import create_latex_table_1
 from typing import List
 import numpy as np
 from logging import Logger
@@ -224,7 +225,7 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
         # after attack_models are done, train another model ontop of it.
         # attack_model_2 = MLPClassifier(hidden_layer_sizes=(100, 50,25,1), activation='relu', solver='adam', learning_rate_init=0.001, max_iter=1000)
         attack_model_2 = xgb.XGBClassifier(max_depth=12, objective="binary:logistic", tree_method="approx",
-                            learning_rate=0.3, n_estimators=50, gamma=0.5, reg_alpha=0.0, reg_lambda=0.1)
+                            learning_rate=0.3, n_estimators=30, gamma=0.5, reg_alpha=0.0, reg_lambda=0.1)
         # train attack_model 2 on the outputs of attack_models, max(p) & min(p) & avg(p) level 0,.., max(p) & min(p) & avg(p) level l. * max_tree * nClasses
         
         # (X, y)
@@ -270,7 +271,7 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
 
 def retrieve_data(target_model, shadow_model, attack_model, X_train, y_train, X_test, y_test, z_test, labels_test): # TODO put this in SFXGBoost
     data = {}
-    from sklearn.metrics import accuracy_score, precision_score
+    from sklearn.metrics import accuracy_score, precision_score, recall_score
     y_train = np.argmax(y_train, axis=1)
     y_test = np.argmax(y_test, axis=1)
 
@@ -307,7 +308,8 @@ def retrieve_data(target_model, shadow_model, attack_model, X_train, y_train, X_
     data["accuracy test attack"] = acc_test_attack
     prec_test_attack = precision_score(labels_test, y_pred_test_attack, average=None)
     data["precision test attack"] = prec_test_attack
-    
+    recall_test_attack = recall_score(labels_test, y_pred_test_attack)
+    data["recall_test_attack"] = recall_test_attack
     return data
 
 def create_attack_model_federated(config:Config, G:list) -> list:
@@ -337,21 +339,30 @@ def experiment1():
     seed = 10
     datasets = ["healthcare"]
     targetArchitectures = ["XGBoost", "FederBoost-central"]
+    targetArchitectures = ["FederBoost-central"]
+
     all_data = {} # all_data["XGBoost"]["healthcore"]["accuarcy train shadow"]
     # tested_param = "gamma"
     # tested_param_vals = [0.1, 0.5, 0.7, 0.9, 1]
-    to_be_tested = {"gamma":[0.1, 0.5, 0.7, 0.9, 1], 
-                    "max_depth":[5, 8, 12]}
+    to_be_tested = {"gamma": [0, 0.1, 0.25, 0.5, 0.75, 1, 5, 10], # [0,inf] minimum loss for split to happen default = 0
+                    "max_depth": [5, 8, 12],
+                    "max_trees": [5, 10, 20, 30, 50, 100, 150],
+                    "training_size": [1000, 2000, 5000, 10_000, 30_000],
+                    "alpha": [0, 0.1, 0.25, 0.5, 0.75, 1, 10],  # [0, inf] L1 regularisation default = 0
+                    "lam":   [0, 0.1, 0.25, 0.5, 0.75, 1, 10],  # L2 regularisation [0, inf] default = 1
+                    "eta":   [0, 0.1, 0.25, 0,5 ,0.75, 1]  # learning rate [0,1] default = 0.3
+                    }
 
-    all_data = {} # all_data["XGBoost"]["healthcore"]["accuarcy train shadow"]
+    all_data = {} # all_data["XGBoost"][tested_metic]["healthcare"]["accuarcy train shadow"]
     plot_auc(y_tre, y_pred, "Plots/experiment1_AUC.jpeg")
     
     for targetArchitecture in targetArchitectures:
         all_data[targetArchitecture] = {}
-        for dataset in datasets:
-            all_data[targetArchitecture][dataset] = {}
-            for parameter_name, params in to_be_tested.items():
-                all_data[targetArchitecture][dataset][parameter_name] = {}
+        for parameter_name, params in to_be_tested.items():
+            all_data[targetArchitecture][parameter_name] = {}
+            for dataset in datasets:
+                all_data[targetArchitecture][parameter_name][dataset] = {}
+            
                 for val in params:
                     config = Config(experimentName = "experiment 1",
                             nameTest= dataset + " test",
@@ -365,6 +376,8 @@ def experiment1():
                             max_tree=20,
                             nBuckets=35)
                     setattr(config, parameter_name, val)  # update the config with the to be tested value
+                    print(f"metric {parameter_name} {val}")
+                    logger.warning(f"metric {parameter_name} {val}")
                     target_model = SFXGBoost(config, logger)
                     shadow_model = SFXGBoost(config, logger)
                     # attack_model = MLPClassifier(hidden_layer_sizes=(20,11,11), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
@@ -372,18 +385,20 @@ def experiment1():
                                     learning_rate=0.3, n_estimators=20, gamma=0.5, reg_alpha=0.0, reg_lambda=0.1)
                     data = get_data_attack_centrally(target_model, shadow_model, attack_model, config, logger)
                     if rank == PARTY_ID.SERVER:
-                        all_data[targetArchitecture][dataset][parameter_name][val] = data
-    table_experiment1(all_data)
+                        all_data[targetArchitecture][parameter_name][dataset][val] = data
+    name_model = targetArchitectures[0]
+    metrics = ["accuracy test attack", "precision test attack", "recall test attack", "overfitting target"]
+    create_latex_table_1(all_data, to_be_tested, metrics, name_model, datasets, "Table/experiment_1.txt")
 
 def experiment2():
     seed = 10
 
     # datasets = ["healthcare", "MNIST", "synthetic", "Census", "DNA", "Purchase-10", "Purhase-20", "Purchase-50", "Purchase-100"]
-    # datasets = ["synthetic", "healthcare"]
+    # datasets = ["synthetic"]
     datasets = ["healthcare"]
 
-    targetArchitectures = ["XGBoost", "FederBoost-central", "FederBoost-federated"]
-    # targetArchitectures = ["FederBoost-federated"]
+    # targetArchitectures = ["XGBoost", "FederBoost-central", "FederBoost-federated"]
+    targetArchitectures = ["FederBoost-federated"]
 
     all_data = {} # all_data["XGBoost"]["healthcore"]["accuarcy train shadow"]
 

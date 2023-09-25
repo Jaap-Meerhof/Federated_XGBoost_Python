@@ -12,14 +12,14 @@ def save(var:any, name:str, config:Config):
     # if not os.path.exists(config.save_location):
     #     os.mkdir(config.save_location)
     if config.save:
-        pickle.dump(var, open(config.save_location + "/"  + name + '.p', 'wb'))
+        pickle.dump(var, open(config.save_location + "/" + config.dataset+ "_"  + name + '.p', 'wb'))
 
 def retrieve(name:str, config:Config):
-    return pickle.load(open(config.save_location + "/" + name + '.p', 'rb'))
+    return pickle.load(open(config.save_location + "/" + config.dataset+ "_" + name + '.p', 'rb'))
 
 def isSaved(name:str, config:Config):
     try:
-        return os.path.exists(config.save_location + "/" + name + '.p')
+        return os.path.exists(config.save_location + "/" + config.dataset+ "_" + name + '.p')
     except FileNotFoundError:
         return False
 

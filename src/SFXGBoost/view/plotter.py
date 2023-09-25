@@ -68,6 +68,12 @@ def plot_histogram(datasets, data, title="Sample text", y_label="y_label", desti
         data (_type_): _description_
         destination (str, optional): _description_. Defaults to "Plots/experiment2.jpeg".
     """
+    from datetime import date
+    import time
+    day = date.today().strftime("%b-%d-%Y")
+    curTime = time.strftime("%H:%M", time.localtime())
+    destination = destination.replace(".jpeg", f"{day},{curTime}.jpeg")
+
     width = 0.25
     multiplier = 0
     x = np.arange(len(datasets))
@@ -96,8 +102,6 @@ def plot_auc(y_true, y_pred, destination="Plots/experiment2_AUC_attack2.jpeg"):
     from datetime import date
     import time
     day = date.today().strftime("%b-%d-%Y")
-
-    # curTime = round(time.time())
     curTime = time.strftime("%H:%M", time.localtime())
     destination = destination.replace(".jpeg", f"{day},{curTime}.jpeg")
 

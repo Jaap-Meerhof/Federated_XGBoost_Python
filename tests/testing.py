@@ -12,15 +12,15 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 
 # 10,5 works really well. 
-shadow = pickle.load(open('Saves/healthcare test_rank_1/healthcare_shadow_model_0.p', 'rb'))
-D_train = pickle.load(open('Saves/healthcare test_rank_0/healthcare_D_Train_Attack_0,7.p', 'rb'))
+# shadow = pickle.load(open('Saves/healthcare test_rank_1/healthcare_shadow_model_0.p', 'rb'))
+D_train = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/backup_24sept/healthcare test_rank_0/healthcare_D_Train_Attack_0,7.p', 'rb'))
 
-D_test = pickle.load(open('Saves/healthcare test_rank_0/healthcare_D_test_attack2.p', 'rb'))
+# D_test = pickle.load(open('Saves/healthcare test_rank_0/healthcare_D_test_attack2.p', 'rb'))
 
-tmp = pickle.load(open('Saves/healthcare test_rank_0/healthcare_D_train_attack2.p', 'rb'))
+# tmp = pickle.load(open('Saves/healthcare test_rank_0/healthcare_D_train_attack2.p', 'rb'))
 
 x = 1
-# D_train = pickle.load(open('Saves/healthcare test_rank_0/D_train_attack2.p', 'rb'))
+D_train = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_train_attack2.p', 'rb'))
 x=1
 
 

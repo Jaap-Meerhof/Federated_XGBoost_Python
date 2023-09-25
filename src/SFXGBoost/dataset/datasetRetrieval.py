@@ -114,9 +114,9 @@ def getSynthetic(federated=False):
     n_shadows = 10
 
     if federated:
-        shadow_size = train_size * n_shadows
+        shadow_size = train_size //2
     else:
-        shadow_size = train_size * 2
+        shadow_size = train_size
 
     def returnfunc():
         """returns ndarrays with all X types and y where y is One Hot encoded
@@ -126,21 +126,31 @@ def getSynthetic(federated=False):
         """
         from sklearn.datasets import make_classification
         n_features = 8
-        X, y = make_classification(n_samples=train_size+test_size+shadow_size, n_features=n_features, n_informative=5, n_redundant=0, n_clusters_per_class=1, class_sep=1.0, n_classes=4, random_state=random_state)
+        X, y = make_classification(n_samples=train_size+test_size+(shadow_size * n_shadows), n_features=n_features, n_informative=5, n_redundant=0, n_clusters_per_class=1, class_sep=1.0, n_classes=4, random_state=random_state)
         y = y.reshape(-1, 1)
         y = makeOneHot(y)
         fName = [str(i) for i in range(0, n_features)]
-        X_train, X_test_shadow, y_train, y_test_shadow = train_test_split(X, y, train_size=train_size, test_size=test_size+shadow_size, random_state=random_state)
-        X_shadow, X_test, y_shadow, y_test = train_test_split(X_test_shadow, y_test_shadow, train_size=shadow_size, test_size=test_size, random_state=random_state)
-        
+
+        X_train = X[:train_size]
+        y_train = y[:train_size]
+
+        X_test = X[train_size:train_size+test_size]
+        y_test = y[train_size:train_size+test_size]
+
+        begin = train_size+test_size
         if federated:
-            X_shadow = [X[i:i+train_size] for i in range(0, shadow_size, train_size)]
-            y_shadow = [y[i:i+train_size] for i in range(0, shadow_size, train_size)]
+            
+            end = len(X)
+            X_shadow = [X[i:i+shadow_size] for i in range(begin, end, shadow_size)]
+            y_shadow = [y[i:i+shadow_size] for i in range(begin, end, shadow_size)]
             assert len(X_shadow) == n_shadows
-        
+        else:
+            X_shadow = X[begin:shadow_size]
+            y_shadow = y[begin:shadow_size]
         return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
     return returnfunc
-
+# X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getSynthetic(True)()
+# x = 1
 def getCensus(paths, federated=False): # binary issue
     return
 
@@ -172,9 +182,9 @@ def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/neh
     random_state = 420
     shadow_size=0
     if federated:
-        shadow_size = train_size # * n_shadows + test_size 
+        shadow_size = train_size//2 # * n_shadows + test_size 
     else: 
-        shadow_size = train_size*2
+        shadow_size = train_size
     # A MINIMUM OF 4 SHADOWS ARE NEEDED!!!
     def returnfunc():
         train = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data", paths)
@@ -208,10 +218,9 @@ def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/neh
             X_shadow = [X[i:i+shadow_size] for i in range(begin, size-shadow_size, shadow_size)][:n_shadows]
             y_shadow = [y[i:i+shadow_size] for i in range(begin, size-shadow_size, shadow_size)][:n_shadows]
             assert len(X_shadow) == n_shadows
-
         else:
-            X_shadow = X[train_size+test_size:train_size+test_size+((shadow_size//2)*n_shadows)]
-            y_shadow = y[train_size+test_size:train_size+test_size+((shadow_size//2)*n_shadows)]
+            X_shadow = X[train_size+test_size:train_size+test_size+((shadow_size))]
+            y_shadow = y[train_size+test_size:train_size+test_size+((shadow_size))]
         return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
 
     # data = np.genfromtxt(paths + "AV_HealthcareAnalyticsII/train_data.csv")

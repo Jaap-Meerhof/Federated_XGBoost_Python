@@ -45,9 +45,9 @@ def f_random(D_Train_Shadow, D_Out_Shadow, seed=0, take=0):
     if take != 0:
         take = take//2
         if seed != 0:
-            np.random.seed(seed)
+            np.random.seed(int(seed))
         take = min(take, min_lenght)  # don't take more than you can
-        indices = np.random.choice(min_lenght, take, replace=True)
+        indices = np.random.choice(min_lenght, int(take), replace=True)
         X_Train_Shadow = X_Train_Shadow[indices]
         X_Out_Shadow = X_Out_Shadow[indices]
 
@@ -114,7 +114,7 @@ def get_train_Attackmodel_1(config:Config, logger:Logger, shadow_models, c, l, D
     input = None
     D_Train_Attack = None  # c, l empty lists size is nshadows * (len(D_train_shadow)*2) * n_nodes # where n_nodes scales exponentially
     y=[]
-    max_lenght = 200_000 # try to devide the max_lenght over the different nodes over the available trees. 
+    max_lenght = 50_000 # try to devide the max_lenght over the different nodes over the available trees. 
     max_lenght_shadow = max_lenght/len(shadow_models)
     max_length_shadow_tree = max_lenght_shadow / config.max_tree
     for i, shadow_model in enumerate(shadow_models):
@@ -128,7 +128,7 @@ def get_train_Attackmodel_1(config:Config, logger:Logger, shadow_models, c, l, D
             # print(f"tree {t} out of {config.max_tree}")
             nodes = shadow_model.trees[c][t].root.get_nodes_depth(l)
             # print(nodes)
-            max_length_shadow_tree_node = max_length_shadow_tree / len(nodes)
+            max_length_shadow_tree_node = max_length_shadow_tree / len(nodes) if len(nodes) else 0  # avoiding devision by zero 
             if max_length_shadow_tree_node < 1:
                 max_length_shadow_tree_node = 1
 
@@ -136,7 +136,7 @@ def get_train_Attackmodel_1(config:Config, logger:Logger, shadow_models, c, l, D
                 splittinginfo = []
                 parent:FLTreeNode = node.parent
                 curnode = node
-                x, labels_train = f_random(D_Train_Shadow[i], D_Train_Shadow[(i+2) % len(D_Train_Shadow)], seed=nodepos, take=int(max_length_shadow_tree_node))  #
+                x, labels_train = f_random(D_Train_Shadow[i], D_Train_Shadow[(i+2) % len(D_Train_Shadow)], seed=nodepos+t+i+c+l, take=max_length_shadow_tree_node)  #int(max_length_shadow_tree_node)
                 z = shadow_model.predict_proba(x)#[:, 1]
                 while parent != None:
                     id = parent.splittingInfo.featureId
@@ -205,20 +205,21 @@ def get_input_attack2(config:Config, D_Train_Shadow, models, attack_models):
                 if all_p is None:
                     print(f"Warning, at depth {l} of model {a} no nodes were found accross all trees of class {c}?!")
                     if (input is None):
-                        input = np.zeros( (x.shape[0], 3) )
+                        input = np.zeros( (x.shape[0], 1) )
                     else:
-                        input = np.column_stack((input, np.zeros( (x.shape[0],3) )))
+                        input = np.column_stack((input, np.zeros( (x.shape[0],1) )))
                 else:
                     # print("----")
                     # print( all_p ) 
                     # print("----")
                     avg = np.average(all_p, axis=1).reshape((-1,1))
-                    min = np.min(all_p, axis=1).reshape((-1,1))
-                    max = np.max(all_p, axis=1).reshape((-1,1))
+                    # min = np.min(all_p, axis=1).reshape((-1,1))
+                    # max = np.max(all_p, axis=1).reshape((-1,1))
                     if (input is None):
-                        input = np.column_stack((avg, min, max))
+                        input = avg
+                        # input = np.column_stack((avg))
                     else:
-                        input = np.column_stack((input, avg, min , max))
+                        input = np.column_stack((input, avg))
                     # input = np.column_stack((avg, min , max))
         if input_attack_2 == []:
             input_attack_2 = input

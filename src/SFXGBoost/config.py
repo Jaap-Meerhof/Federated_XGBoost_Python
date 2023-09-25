@@ -29,7 +29,8 @@ class Config:
         self.nBuckets = nBuckets
         self.save = save
 
-        self.save_location= "./Saves/" + nameTest + "_rank_" + str(rank)
+        # self.save_location= "./Saves/" + nameTest + "_rank_" + str(rank)
+        self.save_location= "/mnt/scratch_dir/meerhofj/Saves/" + nameTest + "_rank_" + str(rank)
 
     def prettyprint(self):
         print(f"experiment name = {self.experimentName}")
