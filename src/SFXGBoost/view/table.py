@@ -9,12 +9,24 @@ def create_latex_table_tmp(h_axis, data, name):
         latex_table += " & ".join(row) + "\\\\\n"
     
     latex_table += "\\hline\n\\end{tabular}"
-    output_filename = name + ".txt"
+    output_filename = name + ".tex"
     
     with open(output_filename, 'w') as f:
         f.write(latex_table)
-        
-def create_latex_table_1(all_data, to_be_tested, metrics, name_model, datasets, destination="Table/experiment_1.txt"):
+
+from SFXGBoost.config import Config
+def create_table_config(config:Config):
+    h_axis= ["parameter" , "value"]
+    data = [["alpha", config.alpha],
+            ["gamma", config.gamma],
+            ["lambda", config.lam],
+            ["learning rate", config.learning_rate],
+            ["max depth", config.max_depth],
+            ["trees", config.max_tree]
+            ]
+    create_latex_table_tmp(h_axis, data, "./Table/" + config.nameTest+ "configparams")
+
+def create_latex_table_1(all_data, to_be_tested, metrics, name_model, datasets, destination="Table/experiment_1_.txt"):
     
     # name_model = "FederBoost-central"
     # to_be_tested = {"gamma": [0, 0.1, 0.25, 0.5, 0.75, 1, 5, 10], # [0,inf] minimum loss for split to happen default = 0
@@ -26,24 +38,25 @@ def create_latex_table_1(all_data, to_be_tested, metrics, name_model, datasets, 
     #             "eta":   [0, 0.1, 0.25, 0,5 ,0.75, 1]  # learning rate [0,1] default = 0.3
     #             }
     # metrics = "overfitting, acc"
-    num_columns = (len(metrics) * len(datasets)) + 1
+    num_columns = len(metrics) * (len(datasets)) 
     for param_name in to_be_tested.keys():
-        latex_table = "\\begin{*table}{|*{" + str(num_columns) + "}{c|}\n"
+        latex_table = "\\begin{table*}[]"
         latex_table += "\\centering\n"
-        latex_table += "\\hline\\rowcolor{gray!50}"
-        latex_table += "\\cellcolor{gray!80} "+ param_name + " & ".join(["\\multicolumn{" + str(len(metrics)) + "}{c|}{"+dataset+"}" for dataset in datasets]) +"\\\\\\hline \n"
+        latex_table += "\\begin{tabular}{|c| *{" + str(num_columns) + "}{m{1.0cm}|}}\n"
+        latex_table += "\\hline\\rowcolor{gray!50}\n"
+        latex_table += "\\cellcolor{gray!80} "+ param_name + " & "+ " & ".join(["\\multicolumn{" + str(len(metrics)) + "}{c|}{"+dataset+"}" for dataset in datasets]) +"\\\\\\hline \n"
         repeated = [metrics for _ in range(len(datasets))]
-        latex_table += "&" + " & ".join( [ metric for metric in repeated])
+        latex_table += "& " + " & ".join( [ " & ".join([strmetric.replace("test ", "") for strmetric in metric]) for metric in repeated]) + "\\\\\\hline\n"
         for val in to_be_tested[param_name]:
-            latex_table += val + " & " + " & ".join(
-                [" & ".join([result for result in [all_data[name_model][param_name][dataset][val][metric] for metric in metrics]
-                            ])for dataset in datasets]) + "\\\\hline\n"
+            latex_table += str(val) + " & " + " & ".join(
+                [" & ".join([f"{result:.2f}" for result in [all_data[name_model][param_name][dataset][val][metric] for metric in metrics]
+                            ])for dataset in datasets]) + "\\\\ \\hline\n"
         latex_table += "\\end{tabular} \n"
         latex_table += "\\caption{" + name_model + "'s attack metrics on "+ param_name + ".}\n"
         latex_table += "\\label{tab:experiment1_"+ param_name+ "}\n"
         latex_table += "\\end{table*}\n"
 
-        tmp_destination = destination.replace(".txt", f"{param_name}.txt")
+        tmp_destination = destination.replace(".txt", f"{param_name}.tex")
         with open(tmp_destination, 'w') as file:
             file.write(latex_table)
 

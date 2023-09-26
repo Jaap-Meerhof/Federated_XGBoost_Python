@@ -1,0 +1,16 @@
+\begin{table*}[]\centering
+\begin{tabular}{|*{9}{c|}}
+\hline\rowcolor{gray!50}
+\cellcolor{gray!80} max_trees & \multicolumn{4}{c|}{healthcare} & \multicolumn{4}{c|}{synthetic}\\\hline 
+& accuracy test attack & precision test attack & recall test attack & overfitting target & accuracy test attack & precision test attack & recall test attack & overfitting target\\\hline
+5 & 0.62 & 0.62 & 0.62 & 0.55 & 0.53 & 0.54 & 0.70 & 0.12\\ \hline
+10 & 0.64 & 0.65 & 0.59 & 0.55 & 0.54 & 0.55 & 0.67 & 0.12\\ \hline
+20 & 0.63 & 0.64 & 0.53 & 0.54 & 0.54 & 0.55 & 0.68 & 0.12\\ \hline
+30 & 0.64 & 0.65 & 0.59 & 0.55 & 0.54 & 0.55 & 0.73 & 0.12\\ \hline
+50 & 0.62 & 0.62 & 0.60 & 0.54 & 0.53 & 0.54 & 0.73 & 0.12\\ \hline
+100 & 0.65 & 0.65 & 0.62 & 0.55 & 0.54 & 0.55 & 0.69 & 0.12\\ \hline
+150 & 0.63 & 0.64 & 0.55 & 0.53 & 0.53 & 0.53 & 0.56 & 0.12\\ \hline
+\end{tabular} 
+\caption{FederBoost-central's attack metrics on max_trees.}
+\label{tab:experiment1_max_trees}
+\end{table*}

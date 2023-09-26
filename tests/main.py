@@ -6,7 +6,7 @@ from SFXGBoost.common.pickler import *
 import SFXGBoost.view.metric_save as saver
 from SFXGBoost.dataset.datasetRetrieval import getDataBase
 from SFXGBoost.view.plotter import plot_experiment2, plot_auc
-from SFXGBoost.view.table import create_latex_table_1
+from SFXGBoost.view.table import create_latex_table_1, create_table_config
 from typing import List
 import numpy as np
 from logging import Logger
@@ -170,10 +170,10 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
     n_shadows = len(X_shadow)
     D_Train_Shadow =   [(X_shadow[i]              , y_shadow[i]              ) for i in range(n_shadows)]
     
-    for i, shadow_model in enumerate(shadow_models):
-        shadow_train_x = np.vstack((D_Train_Shadow[i][0], D_Train_Shadow[(i+1)%n_shadows][0]))
-        shadow_train_y = np.vstack((D_Train_Shadow[i][1], D_Train_Shadow[(i+1)%n_shadows][1]))
-        shadow_models[i] = retrieveorfit(shadow_model, "shadow_model_" + str(i), config, shadow_train_x, shadow_train_y, fName)
+    for a, shadow_model in enumerate(shadow_models):
+        shadow_train_x = np.vstack((D_Train_Shadow[a][0], D_Train_Shadow[(a+1)%n_shadows][0]))
+        shadow_train_y = np.vstack((D_Train_Shadow[a][1], D_Train_Shadow[(a+1)%n_shadows][1]))
+        shadow_models[a] = retrieveorfit(shadow_model, "shadow_model_" + str(a), config, shadow_train_x, shadow_train_y, fName)
 
     G = shadow_models[0].trees[0][0].root.G # take first tree # first feature
     data = None
@@ -188,7 +188,7 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
         # attack_models[c][l] = MLPClassifier(hidden_layer_sizes=(100,50,1), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
         # attack_models = [ [MLPClassifier(hidden_layer_sizes=(100,50,1), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000) for l in range(config.max_depth)] for c in range(config.nClasses)]
         attack_models = [ [xgb.XGBClassifier(max_depth=12, objective="binary:logistic", tree_method="approx",
-                        learning_rate=0.3, n_estimators=50, gamma=0.5, reg_alpha=0.0, reg_lambda=0.1) for l in range(config.max_depth)] for c in range(config.nClasses)]
+                        learning_rate=0.3, n_estimators=20, gamma=0.5, reg_alpha=0.5, reg_lambda=0.1) for l in range(config.max_depth)] for c in range(config.nClasses)]
 
         with ThreadPoolExecutor(max_workers=6) as executor:
             future_D_Train_Attack = [executor.submit(concurrent, config, logger, c, deepcopy(shadow_models), deepcopy(D_Train_Shadow), deepcopy(attack_models)) for c in range(config.nClasses)  ]
@@ -225,7 +225,7 @@ def train_all_federated(target_model, shadow_models, attack_models:List[DepthNN]
         # after attack_models are done, train another model ontop of it.
         # attack_model_2 = MLPClassifier(hidden_layer_sizes=(100, 50,25,1), activation='relu', solver='adam', learning_rate_init=0.001, max_iter=1000)
         attack_model_2 = xgb.XGBClassifier(max_depth=12, objective="binary:logistic", tree_method="approx",
-                            learning_rate=0.3, n_estimators=30, gamma=0.5, reg_alpha=0.0, reg_lambda=0.1)
+                            learning_rate=0.3, n_estimators=20, gamma=0.5, reg_alpha=0.5, reg_lambda=0.1)
         # train attack_model 2 on the outputs of attack_models, max(p) & min(p) & avg(p) level 0,.., max(p) & min(p) & avg(p) level l. * max_tree * nClasses
         
         # (X, y)
@@ -279,11 +279,11 @@ def retrieve_data(target_model, shadow_model, attack_model, X_train, y_train, X_
     y_pred_test_target = target_model.predict(X_test)                   
     acc_train_target = accuracy_score(y_train, y_pred_train_target)     # accuarcy train target
     data["accuracy train target"] = acc_train_target                         # accuracy train target
-    prec_train_target = precision_score(y_train, y_pred_train_target, average=None)
+    prec_train_target = precision_score(y_train, y_pred_train_target, average="weighted")
     data["precision train target"] = prec_train_target
     acc_test_target = accuracy_score(y_test, y_pred_test_target)
     data["accuray test target"] = acc_test_target
-    prec_test_target = precision_score(y_test, y_pred_test_target, average=None)
+    prec_test_target = precision_score(y_test, y_pred_test_target, average="weighted")
     data["precision test target"] = prec_test_target
     overfit_target = acc_train_target - acc_test_target
     data["overfitting target"] = overfit_target
@@ -306,10 +306,10 @@ def retrieve_data(target_model, shadow_model, attack_model, X_train, y_train, X_
     y_pred_test_attack = attack_model.predict(z_test) # true = labels_test
     acc_test_attack = accuracy_score(labels_test, y_pred_test_attack)
     data["accuracy test attack"] = acc_test_attack
-    prec_test_attack = precision_score(labels_test, y_pred_test_attack, average=None)
+    prec_test_attack = precision_score(labels_test, y_pred_test_attack, average="weighted")
     data["precision test attack"] = prec_test_attack
     recall_test_attack = recall_score(labels_test, y_pred_test_attack)
-    data["recall_test_attack"] = recall_test_attack
+    data["recall test attack"] = recall_test_attack
     return data
 
 def create_attack_model_federated(config:Config, G:list) -> list:
@@ -335,9 +335,22 @@ def create_attack_model_federated(config:Config, G:list) -> list:
     return Attack_Models
 
 def experiment1():
-    logger = MyLogger(config).logger
+
+    logger = MyLogger(Config(experimentName = "experiment 1",
+                            nameTest= " test",
+                            model="centralised",
+                            dataset="healthcare",
+                            lam=0.1, # 0.1 10
+                            gamma=0.5,
+                            alpha=0.0,
+                            learning_rate=0.3,
+                            max_depth=8,
+                            max_tree=20,
+                            nBuckets=35,
+                            save=False)).logger  # hacky way to get A logger
+
     seed = 10
-    datasets = ["healthcare"]
+    datasets = ["healthcare", "synthetic"]
     targetArchitectures = ["XGBoost", "FederBoost-central"]
     targetArchitectures = ["FederBoost-central"]
 
@@ -345,16 +358,19 @@ def experiment1():
     # tested_param = "gamma"
     # tested_param_vals = [0.1, 0.5, 0.7, 0.9, 1]
     to_be_tested = {"gamma": [0, 0.1, 0.25, 0.5, 0.75, 1, 5, 10], # [0,inf] minimum loss for split to happen default = 0
-                    "max_depth": [5, 8, 12],
-                    "max_trees": [5, 10, 20, 30, 50, 100, 150],
-                    "training_size": [1000, 2000, 5000, 10_000, 30_000],
+                    "max_depth": [5, 8, 12, 15],
+                    "max_tree": [5, 10, 20, 30, 50, 100, 150],
+                    # "training_size": [1000, 2000, 5000, 10_000, 30_000],
                     "alpha": [0, 0.1, 0.25, 0.5, 0.75, 1, 10],  # [0, inf] L1 regularisation default = 0
                     "lam":   [0, 0.1, 0.25, 0.5, 0.75, 1, 10],  # L2 regularisation [0, inf] default = 1
-                    "eta":   [0, 0.1, 0.25, 0,5 ,0.75, 1]  # learning rate [0,1] default = 0.3
+                    "learning_rate":   [0.1, 0.25, 0.5 ,0.75, 1]  # learning rate [0,1] default = 0.3
                     }
+    
+    # to_be_tested = {"gamma": [0, 0.1],
+    #                 "max_depth": [5, 10]}
 
     all_data = {} # all_data["XGBoost"][tested_metic]["healthcare"]["accuarcy train shadow"]
-    plot_auc(y_tre, y_pred, "Plots/experiment1_AUC.jpeg")
+    # plot_auc(y_tre, y_pred, "Plots/experiment1_AUC.jpeg")
     
     for targetArchitecture in targetArchitectures:
         all_data[targetArchitecture] = {}
@@ -374,7 +390,10 @@ def experiment1():
                             learning_rate=0.3,
                             max_depth=8,
                             max_tree=20,
-                            nBuckets=35)
+                            nBuckets=35,
+                            save=False)
+                    create_table_config(config)
+                    
                     setattr(config, parameter_name, val)  # update the config with the to be tested value
                     print(f"metric {parameter_name} {val}")
                     logger.warning(f"metric {parameter_name} {val}")
@@ -386,9 +405,13 @@ def experiment1():
                     data = get_data_attack_centrally(target_model, shadow_model, attack_model, config, logger)
                     if rank == PARTY_ID.SERVER:
                         all_data[targetArchitecture][parameter_name][dataset][val] = data
-    name_model = targetArchitectures[0]
-    metrics = ["accuracy test attack", "precision test attack", "recall test attack", "overfitting target"]
-    create_latex_table_1(all_data, to_be_tested, metrics, name_model, datasets, "Table/experiment_1.txt")
+    if rank == PARTY_ID.SERVER:
+
+        name_model = targetArchitectures[0]
+        metrics = ["accuracy test attack", "precision test attack", "recall test attack", "overfitting target"]
+        arguments = (all_data, to_be_tested, metrics, name_model, datasets)
+        pickle.dump(arguments, open("./Saves/arguments.p", 'wb'))
+        create_latex_table_1(all_data, to_be_tested, metrics, name_model, datasets, "./Table/experiment_1_.txt")
 
 def experiment2():
     seed = 10

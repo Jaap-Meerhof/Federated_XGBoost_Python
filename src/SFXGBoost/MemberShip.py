@@ -133,36 +133,13 @@ def get_train_Attackmodel_1(config:Config, logger:Logger, shadow_models, c, l, D
                 max_length_shadow_tree_node = 1
 
             for nodepos, node in enumerate(nodes):
-                splittinginfo = []
-                parent:FLTreeNode = node.parent
-                curnode = node
                 x, labels_train = f_random(D_Train_Shadow[i], D_Train_Shadow[(i+2) % len(D_Train_Shadow)], seed=nodepos+t+i+c+l, take=max_length_shadow_tree_node)  #int(max_length_shadow_tree_node)
                 z = shadow_model.predict_proba(x)#[:, 1]
-                while parent != None:
-                    id = parent.splittingInfo.featureId
-                    splitvalue = parent.splittingInfo.splitValue
-                    splittinginfo.append(id)
-                    splittinginfo.append(splitvalue)
-                    if parent.leftBranch == curnode:
-                        pass  # smaller equal <=
-                        splittinginfo.append(0)
-                    elif parent.rightBranch == curnode:
-                        pass  # Greater > 
-                        splittinginfo.append(1)
-                    else:
-                        raise(Exception("??"))  # This actually caught a bug
-                    curnode = parent
-                    parent = parent.parent
-
-                flattened = flatten_list([splittinginfo , node.G, node.H])  # flatten the information
-                # todo only take 100
-                input = np.column_stack((x, np.tile(flattened, (x.shape[0] , 1))))  # copy the flattened information for every x, f(x)=z
+                input = get_info_node(x, node=node)
                 y.extend(labels_train)
 
                 if not D_Train_Attack is None: 
                     D_Train_Attack = np.vstack((D_Train_Attack, input))
-                    # print(sys.getsizeof(D_Train_Attack))
-                    # print(f"shape: {D_Train_Attack.shape[0]}")
                 else:
                     D_Train_Attack = input
 

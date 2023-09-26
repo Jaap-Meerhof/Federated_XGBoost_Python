@@ -145,11 +145,11 @@ def getSynthetic(federated=False):
             y_shadow = [y[i:i+shadow_size] for i in range(begin, end, shadow_size)]
             assert len(X_shadow) == n_shadows
         else:
-            X_shadow = X[begin:shadow_size]
-            y_shadow = y[begin:shadow_size]
+            X_shadow = X[begin:begin+shadow_size]
+            y_shadow = y[begin:begin+shadow_size]
         return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
     return returnfunc
-# X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getSynthetic(True)()
+# X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getSynthetic(False)()
 # x = 1
 def getCensus(paths, federated=False): # binary issue
     return
@@ -195,10 +195,11 @@ def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/neh
         train = train.dropna()
 
         for featureName in non_continuous:
-            train[featureName] = train[featureName].factorize()[0]
+            train[featureName] = train[featureName].factorize()[0]  # string to int. 
 
         # train[strings] = train[strings].apply(lambda x: pd.factorize(x)[0])
         # train = train.apply(lambda x: pd.factorize(x)[0])
+        
         fName = train.columns.tolist()[1:17]
         X = train.values[:, 1:17]
         y = makeOneHot(y = train.values[:, 17].reshape(-1,1))
@@ -229,8 +230,8 @@ def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/neh
 POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
-# X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getHealthcare(POSSIBLE_PATHS, True)()
-# pass
+X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getHealthcare(POSSIBLE_PATHS, True)()
+pass
 def getDataBase(dataBaseName, paths, federated=False):
     """After setting the database in the config, this will retrieve the database
     """

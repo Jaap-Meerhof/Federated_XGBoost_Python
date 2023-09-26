@@ -4,14 +4,20 @@ import os
 from pathlib import Path
 from SFXGBoost.config import Config, rank
 
-def save(var:any, name:str, config:Config):
-    file_path = Path(config.save_location)
+def save(var:any, name:str, config:Config=None, destination:str="Tmp/test.p"):
+    file_path=None
+    if config is None:
+        file_path = Path(destination)
+    else:
+        file_path = Path(config.save_location)
     file_path.parent.mkdir(parents=True, exist_ok=True)
     file_path.mkdir(parents=True, exist_ok=True)
 
     # if not os.path.exists(config.save_location):
     #     os.mkdir(config.save_location)
-    if config.save:
+    if config is None:
+        pickle.dump(var, open(destination, 'wb'))
+    elif config.save:
         pickle.dump(var, open(config.save_location + "/" + config.dataset+ "_"  + name + '.p', 'wb'))
 
 def retrieve(name:str, config:Config):

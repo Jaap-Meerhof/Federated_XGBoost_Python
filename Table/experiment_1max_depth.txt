@@ -1,0 +1,12 @@
+\begin{table*}[]\centering
+\begin{tabular}{|*{9}{c|}}
+\hline\rowcolor{gray!50}
+\cellcolor{gray!80} max_depth & \multicolumn{4}{c|}{healthcare} & \multicolumn{4}{c|}{synthetic}\\\hline 
+& accuracy test attack & precision test attack & recall test attack & overfitting target & accuracy test attack & precision test attack & recall test attack & overfitting target\\\hline
+5 & 0.55 & 0.55 & 0.56 & 0.37 & 0.50 & 0.50 & 0.47 & 0.09\\ \hline
+8 & 0.64 & 0.64 & 0.57 & 0.55 & 0.54 & 0.54 & 0.65 & 0.12\\ \hline
+12 & 0.71 & 0.71 & 0.69 & 0.62 & 0.55 & 0.56 & 0.69 & 0.12\\ \hline
+\end{tabular} 
+\caption{FederBoost-central's attack metrics on max_depth.}
+\label{tab:experiment1_max_depth}
+\end{table*}
