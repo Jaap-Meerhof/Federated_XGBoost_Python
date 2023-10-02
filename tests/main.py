@@ -198,8 +198,8 @@ def train_all_federated(target_model, shadow_models, attack_models1:List, attack
                 c, attack_models1[c] = future.result()
         
         tmp_data = [D_Train_Shadow[(a+1) % len(D_Train_Shadow)] for a in range(len(D_Train_Shadow))]
-        for c in config.nClasses:
-            for d in config.max_depth:
+        for c in range(config.nClasses):
+            for d in range(config.max_depth):
                 X_Train_Attack, y = get_train_Attackmodel_1(config, logger, shadow_models, c, d, tmp_data)
                 save((X_Train_Attack, y), f"D_Test_Attack_{c},{d}", config)
         del tmp_data
