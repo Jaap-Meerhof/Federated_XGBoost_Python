@@ -12,45 +12,46 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 from SFXGBoost.common.pickler import save
 from SFXGBoost.view.table import create_latex_table_1
-var = 9
-arguments = pickle.load(open("./Saves/arguments.p", "rb"))
-create_latex_table_1(all_data=arguments[0], to_be_tested=arguments[1], metrics=arguments[2], name_model=arguments[3], datasets=arguments[4], destination="./Table/experiment_1.txt")
+# var = 9
+# arguments = pickle.load(open("./Saves/arguments.p", "rb"))
+# create_latex_table_1(all_data=arguments[0], to_be_tested=arguments[1], metrics=arguments[2], name_model=arguments[3], datasets=arguments[4], destination="./Table/experiment_1.txt")
 # pickle.dump(var, open("./Saves/kanker.p", 'wb'))
 # 10,5 works really well. 
 # shadow = pickle.load(open('Saves/healthcare test_rank_1/healthcare_shadow_model_0.p', 'rb'))
-D_train = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/backup_24sept/healthcare test_rank_0/healthcare_D_Train_Attack_0,7.p', 'rb'))
+# D_train = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/backup_24sept/healthcare test_rank_0/healthcare_D_Train_Attack_0,7.p', 'rb'))
 
 # D_test = pickle.load(open('Saves/healthcare test_rank_0/healthcare_D_test_attack2.p', 'rb'))
 
 # tmp = pickle.load(open('Saves/healthcare test_rank_0/healthcare_D_train_attack2.p', 'rb'))
+if True:
+    x = 1
+    D_train = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_train_attack2.p', 'rb'))
+    np.column_stack((D_train[0][7], D_train[0][14], D_train[0][21]))
+    D_test = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_test_attack2.p', 'rb'))
+    tmp = np.average(D_train[0], axis=1)
+    x=1
 
-x = 1
-D_train = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_train_attack2.p', 'rb'))
-D_test = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_test_attack2.p', 'rb'))
+    ####################
+    import xgboost as xgb
+    config = Config(experimentName = "experiment 2",
+                nameTest= " test",
+                model="normal",
+                dataset="healthcare",
+                lam=0.1, # 0.1 10
+                gamma=0.5,
+                alpha=0.2,
+                learning_rate=0.3,
+                max_depth=15,
+                max_tree=30,
+                nBuckets=35)
 
-x=1
-
-####################
-import xgboost as xgb
-config = Config(experimentName = "experiment 2",
-            nameTest= " test",
-            model="normal",
-            dataset="healthcare",
-            lam=0.1, # 0.1 10
-            gamma=0.5,
-            alpha=0.2,
-            learning_rate=0.3,
-            max_depth=15,
-            max_tree=30,
-            nBuckets=35)
-
-attack_model_2 = xgb.XGBClassifier(max_depth=config.max_depth, objective="binary:logistic", tree_method="approx",
-                        learning_rate=config.learning_rate, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=config.alpha, reg_lambda=config.lam)
-attack_model_2.fit(D_train[0], D_train[1])
-y_pred = attack_model_2.predict(D_test[0])
-acc = accuracy_score(D_test[1], y_pred)
-print(acc)
-x= 1
+    attack_model_2 = xgb.XGBClassifier(max_depth=config.max_depth, objective="binary:logistic", tree_method="approx",
+                            learning_rate=config.learning_rate, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=config.alpha, reg_lambda=config.lam)
+    attack_model_2.fit(D_train[0], D_train[1])
+    y_pred = attack_model_2.predict(D_test[0])
+    acc = accuracy_score(D_test[1], y_pred)
+    print(acc)
+    x= 1
 ##########
 
 
@@ -67,6 +68,7 @@ config = Config(experimentName = "experiment 2",
             max_depth=15,
             max_tree=30,
             nBuckets=35)
+D_train = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_Train_Attack_0,0.p', 'rb'))
 
 attack_model_2 = xgb.XGBClassifier(max_depth=config.max_depth, objective="binary:logistic", tree_method="approx",
                         learning_rate=config.learning_rate, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=config.alpha, reg_lambda=config.lam)

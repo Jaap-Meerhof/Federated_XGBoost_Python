@@ -2,29 +2,36 @@
 
 
 def create_latex_table_tmp(h_axis, data, name):
-    latex_table = "\\begin{tabular}{| "+ "|".join(["c" for _ in h_axis]) + "|}\n"
-    latex_table = "\\hline\n" + " & ".join(h_axis) + "\\\\\n\\hline\n"
+
+    latex_table = "\\begin{table}\n"
+    latex_table += "\\centering\n"
+    latex_table += "\\begin{tabular}{| "+ "|".join(["c" for _ in h_axis]) + "|}\n\\hline"
+    latex_table += "\\hline\n" + " & ".join(h_axis) + "\\\\\n\\hline\n"
 
     for row in data:
-        latex_table += " & ".join(row) + "\\\\\n"
+        latex_table += " & ".join(str(item) for item in row) + "\\\\\\hline\n"
     
-    latex_table += "\\hline\n\\end{tabular}"
+    latex_table += "\n\\end{tabular}"
+    latex_table += "\\caption{Standard configurations experiment 1} \n"
+    latex_table += "\\label{tab:" + name + "}\n"
+    latex_table += "\\end{table}\n"
+
     output_filename = name + ".tex"
     
     with open(output_filename, 'w') as f:
         f.write(latex_table)
 
 from SFXGBoost.config import Config
-def create_table_config(config:Config):
+def create_table_config(alpha, gamma, lam, learning_rate, max_depth, max_tree, name:str='Sample Text'):
     h_axis= ["parameter" , "value"]
-    data = [["alpha", config.alpha],
-            ["gamma", config.gamma],
-            ["lambda", config.lam],
-            ["learning rate", config.learning_rate],
-            ["max depth", config.max_depth],
-            ["trees", config.max_tree]
+    data = [["alpha", alpha],
+            ["gamma", gamma],
+            ["lambda", lam],
+            ["learning rate", learning_rate],
+            ["max depth", max_depth],
+            ["trees", max_tree]
             ]
-    create_latex_table_tmp(h_axis, data, "./Table/" + config.nameTest+ "configparams")
+    create_latex_table_tmp(h_axis, data, "./Table/" + "config " + name )
 
 def create_latex_table_1(all_data, to_be_tested, metrics, name_model, datasets, destination="Table/experiment_1_.txt"):
     
@@ -60,7 +67,16 @@ def create_latex_table_1(all_data, to_be_tested, metrics, name_model, datasets, 
         with open(tmp_destination, 'w') as file:
             file.write(latex_table)
 
-    
+def table_config_MLP(Layers, optimiser:str, learningrate:str, max_iter:str):
+    latex_table = "\\begin{table*}[]"
+    latex_table += "\\centering\n"
+    latex_table += "\\begin{tabular}{|c| *{" + str(3) + "}{m{1.0cm}|}}\n"
+    latex_table += "\\hline\\rowcolor{gray!50}\n"
+    latex_table += "\\cellcolor{gray!80} Layer &  Number of NOdes\\\\\\hline \n"
+
+    for layer in Layers:
+        pass
+
 
 def table_experiment1(all_data):
 

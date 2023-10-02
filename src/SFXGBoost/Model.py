@@ -17,6 +17,28 @@ class MSG_ID:
     Quantile_QJ = 86
     Quantile_nPrime_i = 89
 
+def devide_D_Train(X, y, user_rank):
+    """uses The same algorith as used when doing .fit() on my federated algorithm. 
+
+    Args:
+        X (_type_): _description_
+        y (_type_): _description_
+        user_rank (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    total_users = comm.Get_size() - 1
+    total_lenght = len(X)
+    elements_per_node = total_lenght//total_users
+    start_end = [(i * elements_per_node, (i+1)* elements_per_node) for i in range(total_users)]
+
+    start = start_end[user_rank-1][0]
+    end = start_end[user_rank-1][1]
+    X_train_my = X[start:end, :]
+    y_train_my = y[start:end]
+    return X_train_my, y_train_my
+
 class SFXGBoostClassifierBase:
     def __init__(self, config:Config, logger:Logger, treeSet) -> None:
         self.trees: np.array(np.array(SFXGBoostTree)) = treeSet
@@ -98,17 +120,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     H = [[ [] for _ in range(len(nodes[c])) ] for c in range(self.config.nClasses)]
                     for Pi in range(1, comm.Get_size()):
                         
-                        GH = comm.recv(source=Pi, tag=MSG_ID.RESPONSE_GRADIENTS) # receive [nClasses][nodes][]
-                        # print("----")
-                        # print(len(GH))
-                        # print(len(GH[0]))
-                        # print(len(GH[0][0]))
-                        if len(GH[0][0]) != 0:
-                            # print(len(GH[0][0][0]))
-                            if len(GH[0][0][0]) > 16:
-                                print(f"BIGGER THAN 16?! { len(GH[0][0][0])}")
-                        # print("----")
-                        
+                        GH = comm.recv(source=Pi, tag=MSG_ID.RESPONSE_GRADIENTS) # receive [nClasses][nodes][]                        
                         # raise Exception("testing")
                         for c in range(self.config.nClasses):
                             for i, n in enumerate(nodes[c]):
@@ -126,8 +138,8 @@ class SFXGBoost(SFXGBoostClassifierBase):
                                     n.G = G[c][i]
                                     H[c][i] = [ H[c][i][featureid] + Hpi[c][i][featureid] for featureid in range(len(Hpi[c][i])) ]
                                     n.H = H[c][i]
-                                    if len(n.Gpi[0]) > 16:
-                                        print(f"wtf, {len(n.Gpi[0])}")
+                                    # if len(n.Gpi[0]) > 16:
+                                    #     print(f"wtf, {len(n.Gpi[0])}")
                     
                     splittingInfos = [[] for _ in range(self.config.nClasses)] 
                     # print("got gradients")
@@ -368,6 +380,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
             k -=- 1
         return Gkv, Hkv, None
         # comm.send((Gkv, Hkv, Dx), PARTY_ID.SERVER, tag=MSG_ID.RESPONSE_GRADIENTS)
+
     
     def fit(self, X_train, y_train, fName):
             quantile = QuantiledDataBase(DataBase.data_matrix_to_database(X_train, fName) )
@@ -379,10 +392,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
             start_end = [(i * elements_per_node, (i+1)* elements_per_node) for i in range(total_users)]
 
             if rank != PARTY_ID.SERVER:
-                start = start_end[rank-1][0]
-                end = start_end[rank-1][1]
-                X_train_my = X_train[start:end, :]
-                y_train_my = y_train[start:end]
+                X_train_my, y_train_my = devide_D_Train(X_train, y_train, rank)
 
             # split up the database between the users
             if rank == PARTY_ID.SERVER:

@@ -47,36 +47,35 @@ def getPurchase(num, paths, federated=False):
     test_size = 10_000
     random_state = 690
     shadow_size = 30_000 # take in mind that this shadow_set is devided in 3 sets
-
+    n_shadows = 10
     def returnfunc():
         X = check_mul_paths('acquire-valued-shoppers-challenge/' + 'purchase_100_features.p', paths)
         y = check_mul_paths('acquire-valued-shoppers-challenge/' + 'purchase_100_' + str(num) + '_labels.p', paths)
-        total_size = shadow_size + test_size + train_size
-        if not total_size < len(X) : raise Exception(f"your don't have enough data for these settings. your original X is of size {len(X)} ")
-        
-        X_shadow, X = take_and_remove_items(X, shadow_size)
         y = y.reshape(-1, 1)
         y = makeOneHot(y) 
-        y_shadow, y = take_and_remove_items(y, shadow_size)       
-        X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, test_size=test_size, random_state=random_state)
-        
         fName = []
         for i in range(600):
             fName.append(str(i))
-        # logger.warning(f"got purchase {num} dataset!")
-
-        return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
-        
+        return split_D((X, y), federated, train_size, n_shadows, fName)        
     return returnfunc
 
 def getTexas(paths, federated=False):
+    """
+    size = 925_128
+    features = 11
+    n_classes = 100
+
+
+    Args:
+        paths (_type_): _description_
+        federated (bool, optional): _description_. Defaults to False.
+    """
     def returnfunc():
         # logger.warning("getting Texas database!")
         train_size = 50_000
-        test_size = 30_000
-        random_state = 69
-        shadow_size = train_size*2 # is devided in two for in/out dataset. Federated * shadow_models
+        n_shadows = 10
 
+        
         X = check_mul_paths('texas/' + 'texas_100_v2_features_2006.p', paths)
         X = np.array(X)
         shape = np.shape(X) # 2516991, 11 2006 = 925128, 11
@@ -85,18 +84,16 @@ def getTexas(paths, federated=False):
         fName = ['THCIC_ID', 'SEX_CODE', 'TYPE_OF_ADMISSION', 'SOURCE_OF_ADMISSION', \
              'LENGTH_OF_STAY', 'PAT_AGE', 'PAT_STATUS', 'RACE', 'ETHNICITY', \
                 'TOTAL_CHARGES', 'ADMITTING_DIAGNOSIS']
-        total_size = shadow_size + test_size + train_size
-        if not total_size < len(X) : raise Exception(f"your don't have enough data for these settings. your original X is of size {len(X)} ")
-        
-        X_shadow, X = take_and_remove_items(X, shadow_size)
+        X = X[100_000:]
+        y = y[100_000:]
         y = y.reshape(-1, 1)
+        # print(np.unique(y[:train_size]))
         y = makeOneHot(y)
-        y_shadow, y = take_and_remove_items(y, shadow_size)       
-        X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, test_size=test_size, random_state=random_state)
-        # logger.warning("got Texas database!")
-    
-        return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
+        
+        return split_D((X,y), federated, train_size, n_shadows, fName)
     return returnfunc
+
+
 POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
@@ -131,23 +128,7 @@ def getSynthetic(federated=False):
         y = makeOneHot(y)
         fName = [str(i) for i in range(0, n_features)]
 
-        X_train = X[:train_size]
-        y_train = y[:train_size]
-
-        X_test = X[train_size:train_size+test_size]
-        y_test = y[train_size:train_size+test_size]
-
-        begin = train_size+test_size
-        if federated:
-            
-            end = len(X)
-            X_shadow = [X[i:i+shadow_size] for i in range(begin, end, shadow_size)]
-            y_shadow = [y[i:i+shadow_size] for i in range(begin, end, shadow_size)]
-            assert len(X_shadow) == n_shadows
-        else:
-            X_shadow = X[begin:begin+shadow_size]
-            y_shadow = y[begin:begin+shadow_size]
-        return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
+        return split_D((X,y), federated, train_size, n_shadows, fName)
     return returnfunc
 # X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getSynthetic(False)()
 # x = 1
@@ -204,33 +185,42 @@ def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/neh
         X = train.values[:, 1:17]
         y = makeOneHot(y = train.values[:, 17].reshape(-1,1))
 
-        # TODO shuffle dataset with seed
-        X_train = X[:train_size]
-        y_train = y[:train_size]
-        
-        # X_test = test.values[:test_size, 1:]
-        # y_test = sample.values[:test_size, 1]
-        X_test = X[train_size:train_size+test_size]
-        y_test = y[train_size:train_size+test_size]
-
-        if federated:
-            size = X.shape[0]
-            begin = train_size+test_size
-            X_shadow = [X[i:i+shadow_size] for i in range(begin, size-shadow_size, shadow_size)][:n_shadows]
-            y_shadow = [y[i:i+shadow_size] for i in range(begin, size-shadow_size, shadow_size)][:n_shadows]
-            assert len(X_shadow) == n_shadows
-        else:
-            X_shadow = X[train_size+test_size:train_size+test_size+((shadow_size))]
-            y_shadow = y[train_size+test_size:train_size+test_size+((shadow_size))]
-        return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
+        return split_D((X,y), federated, train_size, n_shadows, fName)
 
     # data = np.genfromtxt(paths + "AV_HealthcareAnalyticsII/train_data.csv")
     return returnfunc
 
+def split_D(D, federated, train_size, n_shadows, fName):
+
+    X = D[0]
+    y = D[1]
+    total_size = X.shape[0]
+
+    if federated:
+        assert (train_size*2) + ((train_size//2) * n_shadows) <= total_size
+    else:
+        assert train_size*4 <= total_size
+
+    X_train = X[:train_size]
+    y_train = y[:train_size]
+
+    X_test = X[train_size:train_size*2]
+    y_test = y[train_size:train_size*2]
+    if federated:
+        begin = train_size*2
+        shadow_size = train_size//2
+        X_shadow = [X[i:i+shadow_size] for i in range(begin, begin+(shadow_size*n_shadows), train_size//2)]
+        y_shadow = [y[i:i+shadow_size] for i in range(begin, begin+(shadow_size*n_shadows), train_size//2)]
+    else:
+        X_shadow = X[train_size*2:train_size*4]
+        y_shadow = y[train_size*2:train_size*4]
+
+
+    return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
 POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
-X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getHealthcare(POSSIBLE_PATHS, True)()
+# X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getHealthcare(POSSIBLE_PATHS, True)()
 pass
 def getDataBase(dataBaseName, paths, federated=False):
     """After setting the database in the config, this will retrieve the database

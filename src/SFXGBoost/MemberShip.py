@@ -77,20 +77,22 @@ def create_D_attack_centralised(shadow_model_s, D_Train_Shadow, D_Out_Shadow):
     # z = np.take(z, z_top_indices) # take top 3
     return z, labels
 
-def get_info_node(x, z=None, node=None):
+def get_G_H(config:Config, node):
+    if config.target_rank != 0:
+        return flatten_list(node.Gpi[config.target_rank-1], node.Hpi[config.target_rank-1])
+    else:
+        return flatten_list([node.G, node.H])
+
+def get_info_node(config:Config, x, node=None):
     # for node in nodes:
     splittinginfo = []
     parent:FLTreeNode = node.parent
     curnode = node
     i = 0
     if parent is None: # root node!
-        flattened = flatten_list([node.G, node.H])  # flatten the information
-        input = np.column_stack((x, np.tile(flattened, ((x.shape[0]), 1)) ))
+        input = np.column_stack((x, np.tile(get_G_H(config, node), ((x.shape[0]), 1)) ))
         return input
     while parent != None:
-        i += 1
-        if i > 1000:
-            raise(Exception("loop in parent?"))
         id = parent.splittingInfo.featureId
         splitvalue = parent.splittingInfo.splitValue
         splittinginfo.append(id)
@@ -106,51 +108,59 @@ def get_info_node(x, z=None, node=None):
         curnode = parent
         parent = parent.parent
 
-    flattened = flatten_list([splittinginfo , node.G, node.H])  # flatten the information
-    input = np.column_stack((x, np.tile(flattened, ((x.shape[0]), 1)) ))  # copy the flattened information for every x, f(x)=z
+    input = np.column_stack((x, np.tile(splittinginfo, (x.shape[0], 0)), np.tile(get_G_H(config, node), ((x.shape[0]), 1)) ))  # copy the flattened information for every x, f(x)=z
     return input
 
-def get_train_Attackmodel_1(config:Config, logger:Logger, shadow_models, c, l, D_Train_Shadow): # TODO make faster :(
+def get_train_Attackmodel_1(config:Config, logger:Logger, shadow_models, c, d, D_Train_Shadow): # TODO make faster :(
     input = None
     D_Train_Attack = None  # c, l empty lists size is nshadows * (len(D_train_shadow)*2) * n_nodes # where n_nodes scales exponentially
     y=[]
     max_lenght = 50_000 # try to devide the max_lenght over the different nodes over the available trees. 
     max_lenght_shadow = max_lenght/len(shadow_models)
     max_length_shadow_tree = max_lenght_shadow / config.max_tree
-    for i, shadow_model in enumerate(shadow_models):
-        # print(f"working on D_Train for shadow model {i} out of {len(D_Train_Shadow)}")
-        # shadow_model = shadow_model[i]
-        # print(f"shadow model {i} out of {len(shadow_models)}")
-        # x, labels_train = f_random(D_Train_Shadow[i], D_Train_Shadow[(i+2) % len(D_Train_Shadow)], seed=i, take=100)  #
-        # z = shadow_model.predict_proba(x)
-
+    for a, shadow_model in enumerate(shadow_models):
         for t in range(config.max_tree):
-            # print(f"tree {t} out of {config.max_tree}")
-            nodes = shadow_model.trees[c][t].root.get_nodes_depth(l)
-            # print(nodes)
+            nodes = shadow_model.trees[c][t].root.get_nodes_depth(d)
             max_length_shadow_tree_node = max_length_shadow_tree / len(nodes) if len(nodes) else 0  # avoiding devision by zero 
             if max_length_shadow_tree_node < 1:
                 max_length_shadow_tree_node = 1
 
             for nodepos, node in enumerate(nodes):
-                x, labels_train = f_random(D_Train_Shadow[i], D_Train_Shadow[(i+2) % len(D_Train_Shadow)], seed=nodepos+t+i+c+l, take=max_length_shadow_tree_node)  #int(max_length_shadow_tree_node)
-                z = shadow_model.predict_proba(x)#[:, 1]
-                input = get_info_node(x, node=node)
+                x, labels_train = f_random(D_Train_Shadow[a], D_Train_Shadow[(a+2) % len(D_Train_Shadow)], seed=nodepos+t+a+c+d, take=max_length_shadow_tree_node)  #int(max_length_shadow_tree_node)
+                # z = shadow_model.predict_proba(x)
+                input = get_info_node(config, x, node)
                 y.extend(labels_train)
 
                 if not D_Train_Attack is None: 
                     D_Train_Attack = np.vstack((D_Train_Attack, input))
                 else:
                     D_Train_Attack = input
-
-    # print(np.shape(D_Train_Attack))
-    # print(np.shape(np.array(y)))
-    # get_input_attack2(config, D_train_Attack_2, attack_models)
     return D_Train_Attack, np.array(y)  # .reshape(-1, 1)
+
+def get_input_attack2dot1(config:Config, logger:Logger, D_train_shadow, models, attack_models):
+    
+
+    input_attack_2 = []
+    y_attack_2 = []
+    nModels = len(models)
+
+    D_train_shadow_offset = [D_train_shadow[a+1] for a in range(nModels)]
+    for c in config.nClasses:
+        for d in config.max_depth:
+            x_attack_1_cd, y_attack_1_cd = get_train_Attackmodel_1(config, logger, models, c, d, D_train_shadow_offset)
+            y_pred = attack_models[c][d].predict_proba(x_attack_1_cd)
+            if input_attack_2 == []:
+                input_attack_2 = y_pred
+            else:
+                input_attack_2 = np.column_stack((input_attack_2, y_pred))
+            y_attack_2.append(y_attack_1_cd)
+    return input_attack_2, y_attack_2
+
 
 def get_input_attack2(config:Config, D_Train_Shadow, models, attack_models):            
     input_attack_2 = []
     y_attack_2 = []
+
     for a, model in enumerate(models):
         print(f"busy with model {a} out of {len(models)}")
         D_out = None
@@ -173,7 +183,7 @@ def get_input_attack2(config:Config, D_Train_Shadow, models, attack_models):
                     if nodes == []:
                         continue
                     for node in nodes:
-                        node_params = get_info_node(x,None,node) #size = 2000
+                        node_params = get_info_node(config, x ,node) #size = 2000
                         list_of_outputs = attack_models[c][l].predict_proba(node_params)[:, 1] # returns two dimentional array!!!!
                         if all_p is None:
                             all_p = list_of_outputs
