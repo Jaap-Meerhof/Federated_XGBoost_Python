@@ -23,7 +23,7 @@ from SFXGBoost.view.table import create_latex_table_1
 # D_test = pickle.load(open('Saves/healthcare test_rank_0/healthcare_D_test_attack2.p', 'rb'))
 
 # tmp = pickle.load(open('Saves/healthcare test_rank_0/healthcare_D_train_attack2.p', 'rb'))
-if True:
+if False:
     x = 1
     D_train = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_train_attack2.p', 'rb'))
     np.column_stack((D_train[0][7], D_train[0][14], D_train[0][21]))
@@ -55,7 +55,7 @@ if True:
 ##########
 
 
-attack_model_2 = MLPClassifier(hidden_layer_sizes=(1000, 100), activation='relu', solver='adam', learning_rate_init=0.001, max_iter=1000)
+# attack_model_2 = MLPClassifier(hidden_layer_sizes=(1000, 100), activation='relu', solver='adam', learning_rate_init=0.001, max_iter=1000)
 import xgboost as xgb
 config = Config(experimentName = "experiment 2",
             nameTest= " test",
@@ -68,10 +68,11 @@ config = Config(experimentName = "experiment 2",
             max_depth=15,
             max_tree=30,
             nBuckets=35)
-D_train = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_Train_Attack_0,0.p', 'rb'))
+D_train = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_Train_Attack_2,7.p', 'rb'))
+D_test = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_Test_Attack_2,7.p', 'rb'))
 
 attack_model_2 = xgb.XGBClassifier(max_depth=config.max_depth, objective="binary:logistic", tree_method="approx",
-                        learning_rate=config.learning_rate, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=config.alpha, reg_lambda=config.lam)
+                       learning_rate=config.learning_rate, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=config.alpha, reg_lambda=config.lam)
 # attack_model_2 = MLPClassifier(hidden_layer_sizes=(1000,100), activation='relu', solver='adam', learning_rate_init=0.001, max_iter=1000)
 
 def tmp(x_test, y =None):
@@ -87,10 +88,11 @@ new_x, new_y = tmp(D_train[0], D_train[1])
 D_train = (new_x, new_y)
 # if len(D_train[0]) < 29460:
 #     raise Exception("D_train to small")
-x = D_train[0][0:30_000]
-y = D_train[1][0:30_000]
-x_test = D_train[0][30_000:38_460]
-y_test = D_train[1][30_000:38_460]
+x = D_train[0][0:40_000]
+y = D_train[1][0:40_000]
+x_test = D_test[0][0:40_000]
+y_test = D_test[1][0:40_000]
+print(len(x))
 # x_new = x
 # x_new = x[:, 16:27]
 
@@ -98,22 +100,19 @@ y_test = D_train[1][30_000:38_460]
 # x_test_2 = x_test[:, 16:27]
 from keras.layers import LeakyReLU
 model = keras.Sequential([
-    keras.layers.Dense(500, activation=LeakyReLU(alpha=0.01), input_shape=(x.shape[1],)),
+    keras.layers.Dense(x.shape[1], activation=LeakyReLU(alpha=0.01), input_shape=(x.shape[1],)),
     keras.layers.Dense(500, activation=LeakyReLU(alpha=0.01), input_shape=(500,)),
-    keras.layers.Dense(500, activation=LeakyReLU(alpha=0.01), input_shape=(500,)),
-    keras.layers.Dense(300, activation=LeakyReLU(alpha=0.01), input_shape=(500,)),
     keras.layers.Dense(64, activation=LeakyReLU(alpha=0.01), input_shape=(300,)),
-
     keras.layers.Dense(1, activation='sigmoid')
 ])
 optimiser = keras.optimizers.Adam(learning_rate=0.01)
 model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-model.fit(x, y, epochs=1, batch_size=50)
+model.fit(x, y, epochs=5, batch_size=16)
 attack_model_2.fit(x, y)
 import matplotlib.pyplot as plt
-from xgboost import plot_tree
-plot_tree(attack_model_2)
-plt.show()
+#from xgboost import plot_tree
+#plot_tree(attack_model_2)
+#plt.show()
 
 y_pred_proba = attack_model_2.predict_proba(x_test)
 y_pred_proba_nn = model.predict(x_test)

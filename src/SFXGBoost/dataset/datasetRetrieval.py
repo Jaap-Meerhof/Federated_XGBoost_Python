@@ -6,6 +6,34 @@ import pandas as pd
 dataset = 'purchase-10' 
 dataset_list = ['purchase-10', 'purchase-20', 'purchase-50', 'purchase-100', 'texas', 'MNIST', 'synthetic', 'Census', 'DNA']
 
+def split_D(D, federated, train_size, n_shadows, fName):
+
+    X = D[0]
+    y = D[1]
+    total_size = X.shape[0]
+
+    if federated:
+        assert (train_size*2) + ((train_size//2) * n_shadows) <= total_size
+    else:
+        assert train_size*4 <= total_size
+
+    X_train = X[:train_size]
+    y_train = y[:train_size]
+
+    X_test = X[train_size:train_size*2]
+    y_test = y[train_size:train_size*2]
+    if federated:
+        begin = train_size*2
+        shadow_size = train_size//2
+        X_shadow = [X[i:i+shadow_size] for i in range(begin, begin+(shadow_size*n_shadows), train_size//2)]
+        y_shadow = [y[i:i+shadow_size] for i in range(begin, begin+(shadow_size*n_shadows), train_size//2)]
+    else:
+        X_shadow = X[train_size*2:train_size*4]
+        y_shadow = y[train_size*2:train_size*4]
+
+
+    return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
+
 def check_mul_paths(filename, paths):
     import pickle
     for path in paths:
@@ -101,15 +129,42 @@ POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
 
 
 def getMNIST(paths, federated=False):
-    return
+    """only of size 1797!
 
-def getSynthetic(federated=False):
+    Args:
+        paths (_type_): _description_
+        federated (bool, optional): _description_. Defaults to False.
+
+    Returns:
+        _type_: _description_
+    """
+    from sklearn import datasets
+
+    train_size = 2000
+    n_shadows = 10
+    
+    def returnfunct():
+        digits = datasets.load_digits()
+        images = digits.images
+        targets = digits.target
+        images = images.reshape(1797, 8*8)
+        fName = digits.feature_names
+        X = images
+        y = targets
+        y = y.reshape(-1, 1)
+        y = makeOneHot(y)
+        return split_D((X, y), federated, train_size, n_shadows, fName)
+    return returnfunct  
+    
+# getMNIST(None, False)()
+
+def getSynthetic(federated=False, n_classes=8):
     train_size = 2_000
     test_size = 2_000
     random_state = 420
     shadow_size = train_size*2   
     n_shadows = 10
-
+    n_features = 16
     if federated:
         shadow_size = train_size //2
     else:
@@ -122,8 +177,10 @@ def getSynthetic(federated=False):
             _type_: _description_
         """
         from sklearn.datasets import make_classification
-        n_features = 8
-        X, y = make_classification(n_samples=train_size+test_size+(shadow_size * n_shadows), n_features=n_features, n_informative=5, n_redundant=0, n_clusters_per_class=1, class_sep=1.0, n_classes=4, random_state=random_state)
+        
+        X, y = make_classification(n_samples=train_size+test_size+(shadow_size * n_shadows),
+                                    n_features=n_features, n_informative=8, n_redundant=0, n_clusters_per_class=1, 
+                                    class_sep=1.0, n_classes=n_classes, random_state=random_state)
         y = y.reshape(-1, 1)
         y = makeOneHot(y)
         fName = [str(i) for i in range(0, n_features)]
@@ -132,11 +189,36 @@ def getSynthetic(federated=False):
     return returnfunc
 # X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getSynthetic(False)()
 # x = 1
-def getCensus(paths, federated=False): # binary issue
-    return
+def getCensus(paths, federated=False):  # binary issue
+    pass
 
 def getDNA(paths, federated=False):
     return
+
+def getWine(federated=False):
+    train_size = 10_000
+    n_shadows = 10
+
+    def returnfunc():
+        from ucimlrepo import fetch_ucirepo 
+        # fetch dataset 
+        wine_quality = fetch_ucirepo(id=186) 
+        
+        # data (as pandas dataframes) 
+        X = wine_quality.data.features 
+        y = wine_quality.data.targets
+        fName = wine_quality.data.features.columns
+        X = wine_quality.data.features.values   
+        y = wine_quality.data.targets.values
+        y = y[:,0]
+
+        from imblearn.over_sampling import SMOTE
+        x_new, y_new = SMOTE(sampling_strategy='auto', random_state=666, k_neighbors=4).fit_resample(X, y)
+        X = np.vstack((X, x_new))
+        y = np.hstack((y, y_new))
+        return split_D((X, y), federated, train_size, n_shadows, fName)
+    return returnfunc
+# getWine(False)()
 
 
 
@@ -158,6 +240,7 @@ def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/neh
     """
     
     train_size = 2_000
+    
     test_size = 2_000
     n_shadows = 10
     random_state = 420
@@ -190,44 +273,20 @@ def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/neh
     # data = np.genfromtxt(paths + "AV_HealthcareAnalyticsII/train_data.csv")
     return returnfunc
 
-def split_D(D, federated, train_size, n_shadows, fName):
 
-    X = D[0]
-    y = D[1]
-    total_size = X.shape[0]
-
-    if federated:
-        assert (train_size*2) + ((train_size//2) * n_shadows) <= total_size
-    else:
-        assert train_size*4 <= total_size
-
-    X_train = X[:train_size]
-    y_train = y[:train_size]
-
-    X_test = X[train_size:train_size*2]
-    y_test = y[train_size:train_size*2]
-    if federated:
-        begin = train_size*2
-        shadow_size = train_size//2
-        X_shadow = [X[i:i+shadow_size] for i in range(begin, begin+(shadow_size*n_shadows), train_size//2)]
-        y_shadow = [y[i:i+shadow_size] for i in range(begin, begin+(shadow_size*n_shadows), train_size//2)]
-    else:
-        X_shadow = X[train_size*2:train_size*4]
-        y_shadow = y[train_size*2:train_size*4]
-
-
-    return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
 POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
 # X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getHealthcare(POSSIBLE_PATHS, True)()
-pass
+# x=1
 def getDataBase(dataBaseName, paths, federated=False):
     """After setting the database in the config, this will retrieve the database
     """
     get_databasefunc = {'purchase-10': getPurchase(10, paths, federated), 'purchase-20':getPurchase(20, paths, federated), 
                     'purchase-50':getPurchase(50, paths, federated), 'purchase-100':getPurchase(100, paths, federated), 
-                    'texas':getTexas(paths, federated), 'healthcare':getHealthcare(paths, federated), 'MNIST':getMNIST(paths, federated), 'synthetic':getSynthetic(federated), 
+                    'texas':getTexas(paths, federated), 'healthcare':getHealthcare(paths, federated), 'MNIST':getMNIST(paths, federated), 
+                    'synthetic-10':getSynthetic(federated, 10), 'synthetic-20':getSynthetic(federated, 20), 
+                    'synthetic-50':getSynthetic(federated, 50), 'synthetic-100':getSynthetic(federated, 100), 
                     'Census':getCensus(paths, federated), 'DNA':getDNA(paths, federated)
                    }[dataBaseName]
     return get_databasefunc
@@ -246,10 +305,13 @@ def getConfigParams(dataBaseName): # retreive n_classes, n_features
                         'purchase-20': (20, 600), 
                         'purchase-50': (50, 600), 
                         'purchase-100':(100, 600), 
+                        'synthetic-10': (10, 16), # nClasses, nFeatures
+                        'synthetic-20': (20, 16), 
+                        'synthetic-50': (50, 16), 
+                        'synthetic-100':(100, 16), 
                         'texas':(100, 11), 
                         'healthcare':(11, 16),
-                        'MNIST':(-1, -1), 
-                        'synthetic':(4, 8), 
+                        'MNIST':(10, 64), 
                         'Census':(-1, -1), 
                         'DNA':(-1, -1)
                    }[dataBaseName]

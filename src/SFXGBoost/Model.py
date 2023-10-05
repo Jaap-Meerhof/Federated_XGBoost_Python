@@ -17,7 +17,7 @@ class MSG_ID:
     Quantile_QJ = 86
     Quantile_nPrime_i = 89
 
-def devide_D_Train(X, y, user_rank):
+def devide_D_Train(X, y, t_rank):
     """uses The same algorith as used when doing .fit() on my federated algorithm. 
 
     Args:
@@ -30,11 +30,19 @@ def devide_D_Train(X, y, user_rank):
     """
     total_users = comm.Get_size() - 1
     total_lenght = len(X)
-    elements_per_node = total_lenght//total_users
-    start_end = [(i * elements_per_node, (i+1)* elements_per_node) for i in range(total_users)]
+    end, start = 0, 0
+    if t_rank != 0:
+        rank_devisions = [0.1, 0.9]
+        start = int(np.sum( [p*total_lenght for p in rank_devisions[:t_rank-1]]))
+        end = int(np.sum( [p*total_lenght for p in rank_devisions[:t_rank]]))
+    else:
+        elements_per_node = total_lenght//total_users
+        start_end = [(i * elements_per_node, (i+1)* elements_per_node) for i in range(total_users)]
 
-    start = start_end[user_rank-1][0]
-    end = start_end[user_rank-1][1]
+        start = start_end[t_rank-1][0]
+        end = start_end[t_rank-1][1]
+
+    print(f"start DB = {start}, end = {end}, myrank = {rank}")
     X_train_my = X[start:end, :]
     y_train_my = y[start:end]
     return X_train_my, y_train_my

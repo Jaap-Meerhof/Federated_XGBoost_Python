@@ -170,11 +170,7 @@ def train_all_federated(target_model, shadow_models, attack_models1:List, attack
     n_shadows = len(X_shadow)
 
     D_Train_Shadow =   [(X_shadow[i]              , y_shadow[i]              ) for i in range(n_shadows)]
-    if config.target_rank != 0:
-        D_Train_Shadow = [devide_D_Train(X_shadow[i], y_shadow[i], config.target_rank) for i in range(n_shadows) ]  # make shadow_train the same size as the user we want to attack. 
-        X_train, y_train = devide_D_Train(X_train, y_train, config.target_rank)  # change D_target to be the same as actually used by the targeted user
-        X_test, y_test = devide_D_Train(X_test, y_test, config.target_rank)  # change D_test to be same size as targeted user
-
+    print(f"attacking target = {config.target_rank}")
 
     for a, shadow_model in enumerate(shadow_models):
         shadow_train_x = np.vstack((D_Train_Shadow[a][0], D_Train_Shadow[(a+1)%n_shadows][0]))
@@ -190,7 +186,10 @@ def train_all_federated(target_model, shadow_models, attack_models1:List, attack
         print("creating D_attack")
         # TODO create test data for attack models! :)
         # for c in tqdm(range(config.nClasses), desc="> training attack models"):
-
+        if config.target_rank != 0:
+            D_Train_Shadow = [devide_D_Train(X_shadow[i], y_shadow[i], config.target_rank) for i in range(n_shadows) ]  # make shadow_train the same size as the user we want to attack. 
+            X_train, y_train = devide_D_Train(X_train, y_train, config.target_rank)  # change D_target to be the same as actually used by the targeted user
+            X_test, y_test = devide_D_Train(X_test, y_test, config.target_rank)  # change D_test to be same size as targeted user
         with ThreadPoolExecutor(max_workers=6) as executor:
             future_D_Train_Attack = [executor.submit(concurrent, config, logger, c, deepcopy(shadow_models), deepcopy(D_Train_Shadow), deepcopy(attack_models1)) for c in range(config.nClasses)  ]
 
@@ -330,7 +329,8 @@ def experiment1():
                             save=False)).logger  # hacky way to get A logger
 
     seed = 10
-    datasets = ["healthcare", "synthetic"]
+    datasets = ["synthetic-10", "synthetic-20", "synthetic-50", "synthetic-100"]
+
     targetArchitectures = ["XGBoost", "FederBoost-central"]
     targetArchitectures = ["FederBoost-central"]
 
@@ -427,7 +427,7 @@ def experiment2():
     # datasets = ["synthetic"]
     # datasets = ["healthcare", "synthetic", "purchase-10", "purchase-20", "purchase-50", "purchase-100", "texas"]
 
-    datasets = ["healthcare"]
+    datasets = ["healthcare", "synthetic-10", "synthetic-20", "synthetic-50", "synthetic-100"]
     targetArchitectures = ["XGBoost", "FederBoost-central", "FederBoost-federated"]
     # targetArchitectures = ["FederBoost-federated"]
 
@@ -440,14 +440,14 @@ def experiment2():
             model="normal",
             dataset=dataset,
             lam=0.1, # 0.1 10
-            gamma=0.5,
+            gamma=0,
             alpha=0.0,
             learning_rate=0.3,
-            max_depth=8,
+            max_depth=12,
             max_tree=20,
             nBuckets=35,
             save=True,
-            target_rank=1)
+            target_rank=0)
             logger = MyLogger(config).logger
             if rank == PARTY_ID.SERVER: logger.warning(config.prettyprint())
             create_table_config(config.alpha, config.gamma, config.lam, config. learning_rate, config.max_depth, config.max_tree, 

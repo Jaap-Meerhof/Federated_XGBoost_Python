@@ -79,7 +79,7 @@ def create_D_attack_centralised(shadow_model_s, D_Train_Shadow, D_Out_Shadow):
 
 def get_G_H(config:Config, node):
     if config.target_rank != 0:
-        return flatten_list(node.Gpi[config.target_rank-1], node.Hpi[config.target_rank-1])
+        return flatten_list([node.Gpi[config.target_rank-1], node.Hpi[config.target_rank-1]])
     else:
         return flatten_list([node.G, node.H])
 
@@ -115,7 +115,7 @@ def get_train_Attackmodel_1(config:Config, logger:Logger, shadow_models, c, d, D
     input = None
     D_Train_Attack = None  # c, l empty lists size is nshadows * (len(D_train_shadow)*2) * n_nodes # where n_nodes scales exponentially
     y=[]
-    max_lenght = 50_000 # try to devide the max_lenght over the different nodes over the available trees. 
+    max_lenght = 4_000 # try to devide the max_lenght over the different nodes over the available trees. 
     max_lenght_shadow = max_lenght/len(shadow_models)
     max_length_shadow_tree = max_lenght_shadow / config.max_tree
     for a, shadow_model in enumerate(shadow_models):

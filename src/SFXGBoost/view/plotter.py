@@ -53,7 +53,7 @@ def plot_experiment2(all_data:dict):
         
     datasets = list(all_data[list(all_data.keys())[0]].keys())
     plot_histogram(datasets, data_acc, title="accuracy attack", y_label="accuracy", destination="Plots/experiment2_acc.jpeg")
-    plot_histogram(datasets, data_acc, title="precision attack", y_label="precision", destination="Plots/experiment2_precision.jpeg")
+    plot_histogram(datasets, data_prec, title="precision attack", y_label="precision", destination="Plots/experiment2_precision.jpeg")
 
 def plot_histogram(datasets, data, title="Sample text", y_label="y_label", destination="Plots/experiment2.jpeg"):
     """_summary_

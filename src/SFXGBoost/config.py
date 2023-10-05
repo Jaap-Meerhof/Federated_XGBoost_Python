@@ -28,7 +28,7 @@ class Config:
         self.nClasses, self.nFeatures = getConfigParams(self.dataset)
         self.nBuckets = nBuckets
         self.save = save
-        self.target_rank = 0  # Participant's ID to attack for experiment 2
+        self.target_rank = target_rank  # Participant's ID to attack for experiment 2
 
         # self.save_location= "./Saves/" + nameTest + "_rank_" + str(rank)
         self.save_location= "/mnt/scratch_dir/meerhofj/Saves/" + nameTest + "_rank_" + str(rank)
