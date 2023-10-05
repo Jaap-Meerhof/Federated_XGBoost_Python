@@ -33,11 +33,18 @@ class QuantiledFeature(FeatureData):
         # for v in fData:
         #     sketch.add(v)
 
-        if len(np.unique(fData)) > 200:
+        if len(np.unique(fData)) > 101:
             pass
             range_min = np.min(fData)
             range_max = np.max(fData)
-            splittingCandidates = np.linspace(range_min, range_max, num=200) # TODO nBuckets
+            from ddsketch import DDSketch
+            sketch = DDSketch()
+            for value in fData:
+                sketch.add(value)
+            quantiles = np.array([sketch.get_quantile_value(q/100) for q in range(0, 100, 1)])
+            # print(f"DEBUG: {quantiles}")
+            splittingCandidates = quantiles
+            # splittingCandidates = np.linspace(range_min, range_max, num=200) # TODO nBuckets
         else:
             splittingCandidates = np.unique(fData)
 

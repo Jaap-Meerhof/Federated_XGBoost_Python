@@ -190,7 +190,7 @@ def train_all_federated(target_model, shadow_models, attack_models1:List, attack
             D_Train_Shadow = [devide_D_Train(X_shadow[i], y_shadow[i], config.target_rank) for i in range(n_shadows) ]  # make shadow_train the same size as the user we want to attack. 
             X_train, y_train = devide_D_Train(X_train, y_train, config.target_rank)  # change D_target to be the same as actually used by the targeted user
             X_test, y_test = devide_D_Train(X_test, y_test, config.target_rank)  # change D_test to be same size as targeted user
-        with ThreadPoolExecutor(max_workers=6) as executor:
+        with ThreadPoolExecutor(max_workers=2) as executor:
             future_D_Train_Attack = [executor.submit(concurrent, config, logger, c, deepcopy(shadow_models), deepcopy(D_Train_Shadow), deepcopy(attack_models1)) for c in range(config.nClasses)  ]
 
             for future in futures.as_completed(future_D_Train_Attack):
@@ -427,7 +427,11 @@ def experiment2():
     # datasets = ["synthetic"]
     # datasets = ["healthcare", "synthetic", "purchase-10", "purchase-20", "purchase-50", "purchase-100", "texas"]
 
-    datasets = ["healthcare", "synthetic-10", "synthetic-20", "synthetic-50", "synthetic-100"]
+    # datasets = ["healthcare", "synthetic-10", "synthetic-20", "synthetic-50", "synthetic-100"]
+    # datasets = ["synthetic-10", "synthetic-100"]
+    datasets = ["healthcare"]
+
+
     targetArchitectures = ["XGBoost", "FederBoost-central", "FederBoost-federated"]
     # targetArchitectures = ["FederBoost-federated"]
 
