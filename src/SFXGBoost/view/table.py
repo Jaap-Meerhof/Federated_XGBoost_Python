@@ -3,10 +3,10 @@
 
 def create_latex_table_tmp(h_axis, data, name):
 
-    latex_table = "\\begin{table}\n"
+    latex_table = "\\begin{table}[h\n"
     latex_table += "\\centering\n"
     latex_table += "\\begin{tabular}{| "+ "|".join(["c" for _ in h_axis]) + "|}\n\\hline"
-    latex_table += "\\hline\n" + " & ".join(h_axis) + "\\\\\n\\hline\n"
+    latex_table += "\n" + " & ".join(h_axis) + "\\\\\n\\hline\n"
 
     for row in data:
         latex_table += " & ".join(str(item) for item in row) + "\\\\\\hline\n"
