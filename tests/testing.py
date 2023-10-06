@@ -18,12 +18,12 @@ from SFXGBoost.view.table import create_latex_table_1
 # pickle.dump(var, open("./Saves/kanker.p", 'wb'))
 # 10,5 works really well. 
 # shadow = pickle.load(open('Saves/healthcare test_rank_1/healthcare_shadow_model_0.p', 'rb'))
-# D_train = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/backup_24sept/healthcare test_rank_0/healthcare_D_Train_Attack_0,7.p', 'rb'))
+D_train = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_Train_Attack_0,11.p', 'rb'))
 
 # D_test = pickle.load(open('Saves/healthcare test_rank_0/healthcare_D_test_attack2.p', 'rb'))
 
 # tmp = pickle.load(open('Saves/healthcare test_rank_0/healthcare_D_train_attack2.p', 'rb'))
-if False:
+if True:
     x = 1
     D_train = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_train_attack2.p', 'rb'))
     np.column_stack((D_train[0][7], D_train[0][14], D_train[0][21]))
@@ -68,8 +68,8 @@ config = Config(experimentName = "experiment 2",
             max_depth=15,
             max_tree=30,
             nBuckets=35)
-D_train = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_Train_Attack_2,7.p', 'rb'))
-D_test = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_Test_Attack_2,7.p', 'rb'))
+D_train = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_Train_Attack_2,2.p', 'rb'))
+D_test = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_Test_Attack_2,2.p', 'rb'))
 
 attack_model_2 = xgb.XGBClassifier(max_depth=config.max_depth, objective="binary:logistic", tree_method="approx",
                        learning_rate=config.learning_rate, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=config.alpha, reg_lambda=config.lam)
@@ -84,8 +84,8 @@ def tmp(x_test, y =None):
     # y= y[indices]
     return x_test, y
 
-new_x, new_y = tmp(D_train[0], D_train[1])
-D_train = (new_x, new_y)
+# new_x, new_y = tmp(D_train[0], D_train[1])
+# D_train = (new_x, new_y)
 # if len(D_train[0]) < 29460:
 #     raise Exception("D_train to small")
 x = D_train[0][0:40_000]
@@ -107,7 +107,7 @@ model = keras.Sequential([
 ])
 optimiser = keras.optimizers.Adam(learning_rate=0.01)
 model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-model.fit(x, y, epochs=5, batch_size=16)
+model.fit(x, y, epochs=10, batch_size=16)
 attack_model_2.fit(x, y)
 import matplotlib.pyplot as plt
 #from xgboost import plot_tree

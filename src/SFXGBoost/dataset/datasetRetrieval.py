@@ -6,6 +6,16 @@ import pandas as pd
 dataset = 'purchase-10' 
 dataset_list = ['purchase-10', 'purchase-20', 'purchase-50', 'purchase-100', 'texas', 'MNIST', 'synthetic', 'Census', 'DNA']
 
+def apply_DP(X, y):
+    sensitivity = 1
+    epsilon = 1
+    scale = sensitivity/epsilon
+    noise = np.random.laplace(0, scale, X.shape)
+    X + noise
+    return X, y
+
+    return X, y
+
 def split_D(D, federated, train_size, n_shadows, fName):
 
     X = D[0]
@@ -240,21 +250,13 @@ def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/neh
     """
     
     train_size = 2_000
-    
-    test_size = 2_000
-    n_shadows = 10
-    random_state = 420
-    shadow_size=0
-    if federated:
-        shadow_size = train_size//2 # * n_shadows + test_size 
-    else: 
-        shadow_size = train_size
+    n_shadows = 100
     # A MINIMUM OF 4 SHADOWS ARE NEEDED!!!
     def returnfunc():
         train = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data", paths)
-        test = check_mul_paths_csv("AV_HealthcareAnalyticsII/test_data", paths)
-        dict = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data_dictionary", paths)
-        sample = check_mul_paths_csv("AV_HealthcareAnalyticsII/sample_sub", paths)
+        # test = check_mul_paths_csv("AV_HealthcareAnalyticsII/test_data", paths)
+        # dict = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data_dictionary", paths)
+        # sample = check_mul_paths_csv("AV_HealthcareAnalyticsII/sample_sub", paths)
         non_continuous = ['Hospital_type_code', 'Hospital_region_code', 'Department', 'Ward_Type', 'Ward_Facility_Code', 'Type of Admission', 'Severity of Illness', 'Age', 'Stay']
         train = train.dropna()
 

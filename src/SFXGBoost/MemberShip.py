@@ -6,6 +6,7 @@ from SFXGBoost.Model import SFXGBoost
 from SFXGBoost.data_structure.treestructure import FLTreeNode
 from sklearn.model_selection import train_test_split
 from SFXGBoost.common import flatten_list
+from SFXGBoost.common.pickler import retrieve
 import sys
 
 def split_shadow(D_Shadow):
@@ -111,14 +112,15 @@ def get_info_node(config:Config, x, node=None):
     input = np.column_stack((x, np.tile(splittinginfo, (x.shape[0], 0)), np.tile(get_G_H(config, node), ((x.shape[0]), 1)) ))  # copy the flattened information for every x, f(x)=z
     return input
 
-def get_train_Attackmodel_1(config:Config, logger:Logger, shadow_models, c, d, D_Train_Shadow): # TODO make faster :(
+def get_train_Attackmodel_1(config:Config, logger:Logger, n_shadows, c, d, D_Train_Shadow): # TODO make faster :(
     input = None
     D_Train_Attack = None  # c, l empty lists size is nshadows * (len(D_train_shadow)*2) * n_nodes # where n_nodes scales exponentially
     y=[]
     max_lenght = 4_000 # try to devide the max_lenght over the different nodes over the available trees. 
-    max_lenght_shadow = max_lenght/len(shadow_models)
+    max_lenght_shadow = max_lenght/n_shadows
     max_length_shadow_tree = max_lenght_shadow / config.max_tree
-    for a, shadow_model in enumerate(shadow_models):
+    for a in range(n_shadows):
+        shadow_model = retrieve("shadow_model_" + str(a), config)
         for t in range(config.max_tree):
             nodes = shadow_model.trees[c][t].root.get_nodes_depth(d)
             max_length_shadow_tree_node = max_length_shadow_tree / len(nodes) if len(nodes) else 0  # avoiding devision by zero 
@@ -157,40 +159,43 @@ def get_input_attack2dot1(config:Config, logger:Logger, D_train_shadow, models, 
     return input_attack_2, y_attack_2
 
 
-def get_input_attack2(config:Config, D_Train_Shadow, models, attack_models):            
+def get_input_attack2(config:Config, D_Train_Shadow, n_models, attack_models):            
     input_attack_2 = []
     y_attack_2 = []
-
-    for a, model in enumerate(models):
-        print(f"busy with model {a} out of {len(models)}")
-        D_out = None
-        if len(models) == 1: # only target model was given, no shadow models
+    model, D_in, D_out = None, None, None
+    for a, model in range(n_models):
+        if n_models == 1:
+            model = retrieve("target_model", config)
             D_in = D_Train_Shadow[0]
             D_out = D_Train_Shadow[1]
         else:
+            model = retrieve("shadow_model_" + str(a), config)
             D_in = D_Train_Shadow[(a+1) % len(D_Train_Shadow)]
             D_out = D_Train_Shadow[(a+3) % len(D_Train_Shadow)]
+
+        print(f"busy with model {a} out of {n_models}")
+
         x, labels_train = f_random(D_in, D_out, seed=a)
-        z = model.predict_proba(x)#[:, 1]
-        input = np.column_stack( (x, z) )
+        # z = model.predict_proba(x)#[:, 1]
+        # input = np.column_stack( (x, z) )
         input = None  # no x and z
 
         for c in range(config.nClasses):
-            for l in range(config.max_depth):
+            for d in range(config.max_depth):
                 all_p = None
                 for t in range(config.max_tree):
-                    nodes = model.trees[c][t].root.get_nodes_depth(l)
+                    nodes = model.trees[c][t].root.get_nodes_depth(d)
                     if nodes == []:
                         continue
                     for node in nodes:
                         node_params = get_info_node(config, x ,node) #size = 2000
-                        list_of_outputs = attack_models[c][l].predict_proba(node_params)[:, 1] # returns two dimentional array!!!!
+                        list_of_outputs = attack_models[c][d].predict_proba(node_params)[:, 1] # returns two dimentional array!!!!
                         if all_p is None:
                             all_p = list_of_outputs
                         else:
                             all_p = np.column_stack((all_p, list_of_outputs)) # all probas for every x
                 if all_p is None:
-                    print(f"Warning, at depth {l} of model {a} no nodes were found accross all trees of class {c}?!")
+                    print(f"Warning, at depth {d} of model {a} no nodes were found accross all trees of class {c}?!")
                     if (input is None):
                         input = np.zeros( (x.shape[0], 1) )
                     else:

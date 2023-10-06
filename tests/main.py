@@ -117,14 +117,14 @@ def get_data_attack_centrally(target_model, shadow_model, attack_model, config, 
 
 from concurrent.futures import ThreadPoolExecutor
 from concurrent import futures
-def concurrent(config, logger, c, shadow_models, D_Train_Shadow, attack_models):
+def concurrent(config, logger, c, n_shadows, D_Train_Shadow, attack_models):
     print(f"training attack models for class {c} out of {config.nClasses}")
     for d in range(config.max_depth):
         print(f"c={c} l={d}")
         name = f"Attack_model {c},{d}"
         X_Train_Attack, y = None, None
         if not(isSaved(name, config)):
-            X_Train_Attack, y = get_train_Attackmodel_1(config, logger, shadow_models, c, d, D_Train_Shadow) # TODO this is too slow, multithread?
+            X_Train_Attack, y = get_train_Attackmodel_1(config, logger, n_shadows, c, d, D_Train_Shadow) # TODO this is too slow, multithread?
         else:
             D_Train_Attack = retrieve(f"D_Train_Attack_{c},{d}", config)
             X_Train_Attack = D_Train_Attack[0]
@@ -175,9 +175,9 @@ def train_all_federated(target_model, shadow_models, attack_models1:List, attack
     for a, shadow_model in enumerate(shadow_models):
         shadow_train_x = np.vstack((D_Train_Shadow[a][0], D_Train_Shadow[(a+1)%n_shadows][0]))
         shadow_train_y = np.vstack((D_Train_Shadow[a][1], D_Train_Shadow[(a+1)%n_shadows][1]))
-        shadow_models[a] = retrieveorfit(shadow_model, "shadow_model_" + str(a), config, shadow_train_x, shadow_train_y, fName)
-
-    # G = shadow_models[0].trees[0][0].root.G # take first tree # first feature
+        # shadow_models[a] = retrieveorfit(shadow_model, "shadow_model_" + str(a), config, shadow_train_x, shadow_train_y, fName)
+        retrieveorfit(shadow_model, "shadow_model_" + str(a), config, shadow_train_x, shadow_train_y, fName)
+    # IMPORTANT, SHADOW_MODELS ARE NOW STORED ON DRIVE NOT IN MEMORY
 
     data = None
     if rank == PARTY_ID.SERVER:
@@ -190,16 +190,18 @@ def train_all_federated(target_model, shadow_models, attack_models1:List, attack
             D_Train_Shadow = [devide_D_Train(X_shadow[i], y_shadow[i], config.target_rank) for i in range(n_shadows) ]  # make shadow_train the same size as the user we want to attack. 
             X_train, y_train = devide_D_Train(X_train, y_train, config.target_rank)  # change D_target to be the same as actually used by the targeted user
             X_test, y_test = devide_D_Train(X_test, y_test, config.target_rank)  # change D_test to be same size as targeted user
+        
         with ThreadPoolExecutor(max_workers=2) as executor:
-            future_D_Train_Attack = [executor.submit(concurrent, config, logger, c, deepcopy(shadow_models), deepcopy(D_Train_Shadow), deepcopy(attack_models1)) for c in range(config.nClasses)  ]
+            future_D_Train_Attack = [executor.submit(concurrent, config, logger, c, n_shadows, deepcopy(D_Train_Shadow), deepcopy(attack_models1)) for c in range(config.nClasses)  ]
 
             for future in futures.as_completed(future_D_Train_Attack):
                 c, attack_models1[c] = future.result()
         
+        ## D_Test_attack1
         tmp_data = [D_Train_Shadow[(a+1) % len(D_Train_Shadow)] for a in range(len(D_Train_Shadow))]
         for c in range(config.nClasses):
             for d in range(config.max_depth):
-                X_Train_Attack, y = get_train_Attackmodel_1(config, logger, shadow_models, c, d, tmp_data)
+                X_Train_Attack, y = get_train_Attackmodel_1(config, logger, n_shadows, c, d, tmp_data)
                 save((X_Train_Attack, y), f"D_Test_Attack_{c},{d}", config)
         del tmp_data
         # after attack_models are done, train another model ontop of it.
@@ -212,7 +214,7 @@ def train_all_federated(target_model, shadow_models, attack_models1:List, attack
         if isSaved("D_train_attack2", config):
             D_train_attack2 = retrieve("D_train_attack2", config)
         else:
-            D_train_attack2 = get_input_attack2(config, D_Train_Shadow, shadow_models, attack_models1)
+            D_train_attack2 = get_input_attack2(config, D_Train_Shadow, n_shadows, attack_models1)
             save(D_train_attack2, "D_train_attack2", config)
 
         attack_model2.fit(D_train_attack2[0], D_train_attack2[1])
@@ -223,7 +225,7 @@ def train_all_federated(target_model, shadow_models, attack_models1:List, attack
         if isSaved("D_test_attack2", config):
             D_test_attack2 = retrieve("D_test_attack2", config)
         else:
-            D_test_attack2 = get_input_attack2(config, D_test_attack2, [target_model], attack_models1)
+            D_test_attack2 = get_input_attack2(config, D_test_attack2, 1, attack_models1)
             save(D_test_attack2, "D_test_attack2", config)
 
         y_pred = attack_model2.predict(D_test_attack2[0])
@@ -238,7 +240,7 @@ def train_all_federated(target_model, shadow_models, attack_models1:List, attack
         # z test is the | X_train + differentials --> label 1
         #               | X_test + differentials --> label 0
 
-        data = retrieve_data(target_model, shadow_models, attack_model2, X_train, y_train, X_test, y_test, z_test, labels_test)
+        data = retrieve_data(target_model, None, attack_model2, X_train, y_train, X_test, y_test, z_test, labels_test)
         logger.warning(f'accuracy attack = {data["accuracy test attack"]}')
         print(f'accuracy attack = {data["accuracy test attack"]}')
         logger.warning(f'precision attack= {data["precision test attack"]}')
@@ -329,9 +331,11 @@ def experiment1():
                             save=False)).logger  # hacky way to get A logger
 
     seed = 10
-    datasets = ["synthetic-10", "synthetic-20", "synthetic-50", "synthetic-100"]
+    datasets = ["healthcare", "synthetic-10", "synthetic-100"]
 
-    targetArchitectures = ["XGBoost", "FederBoost-central"]
+    # datasets = ["synthetic-10", "synthetic-20", "synthetic-50", "synthetic-100"]
+
+    # targetArchitectures = ["XGBoost", "FederBoost-central"]
     targetArchitectures = ["FederBoost-central"]
 
     all_data = {} # all_data["XGBoost"]["healthcore"]["accuarcy train shadow"]
@@ -390,7 +394,7 @@ def experiment1():
     if rank == PARTY_ID.SERVER:
 
         name_model = targetArchitectures[0]
-        metrics = ["accuracy test attack", "precision test attack", "recall test attack", "overfitting target"]
+        metrics = ["accuracy test attack", "recall test attack", "accuray test target", "overfitting target"]
         arguments = (all_data, to_be_tested, metrics, name_model, datasets)
         pickle.dump(arguments, open("./Saves/arguments.p", 'wb'))
         create_latex_table_1(all_data, to_be_tested, metrics, name_model, datasets, "./Table/experiment_1_.txt")
