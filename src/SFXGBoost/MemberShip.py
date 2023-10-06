@@ -119,6 +119,10 @@ def get_train_Attackmodel_1(config:Config, logger:Logger, n_shadows, c, d, D_Tra
     max_lenght = 4_000 # try to devide the max_lenght over the different nodes over the available trees. 
     max_lenght_shadow = max_lenght/n_shadows
     max_length_shadow_tree = max_lenght_shadow / config.max_tree
+
+    #TODO take randomly from t, node, then add all NO DUPES x's
+    n_nodes = 2^d
+    
     for a in range(n_shadows):
         shadow_model = retrieve("shadow_model_" + str(a), config)
         for t in range(config.max_tree):
