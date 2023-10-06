@@ -16,4 +16,4 @@ TODO:
 - Release paper
 - finish experiment1, experiment2 code
 
-![Made in collaboration with the RIVM (Dutch National Institute for Public Health and the Environment)](https://github.com/Jaap-Meerhof/Federated_XGBoost_Python/blob/main/assets/RIVM-logo.png)
+![Made in collaboration with the RIVM (Dutch National Institute for Public Health and the Environment)](https://github.com/Jaap-Meerhof/Federated_XGBoost_Python/blob/main/assets/RIVM_logo_big.png)
