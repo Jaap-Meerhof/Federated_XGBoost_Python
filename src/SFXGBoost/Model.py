@@ -32,7 +32,8 @@ def devide_D_Train(X, y, t_rank):
     total_lenght = len(X)
     end, start = 0, 0
     if t_rank != 0:
-        rank_devisions = [0.1, 0.9]
+        rank0 = 0.0125 # size=25 when 2000
+        rank_devisions = [rank0, 1-rank0]
         start = int(np.sum( [p*total_lenght for p in rank_devisions[:t_rank-1]]))
         end = int(np.sum( [p*total_lenght for p in rank_devisions[:t_rank]]))
     else:
