@@ -95,7 +95,7 @@ POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
 
 def get_data_attack_centrally(target_model, shadow_model, attack_model, config, logger:Logger, name="sample"):
     # TODO keep track of rank 
-    X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDataBase(config.dataset, POSSIBLE_PATHS)()
+    X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDataBase(config.dataset, POSSIBLE_PATHS, False, config.train_size)()
     log_distribution(logger, X_train, y_train, y_test)
     D_Train_Shadow, D_Out_Shadow = split_shadow((X_shadow, y_shadow)) 
     if type(target_model) == SFXGBoost:
@@ -112,6 +112,8 @@ def get_data_attack_centrally(target_model, shadow_model, attack_model, config, 
         
         data = retrieve_data(target_model, shadow_model, attack_model, X_train, y_train, X_test, y_test, z_test, labels_test)
         logger.warning("accuracy test attack: " + str(data["accuracy test attack"]))
+        logger.warning("accuracy test target: " + str(data["accuracy test target"]))
+        
         # plot_auc(labels_test, attack_model.predict_proba(z_test)[:, 1], f"Plots/experiment2_centralised_AUC_{name}.jpeg")
     return data
 
@@ -157,7 +159,7 @@ def train_all_federated(target_model, shadow_models, attack_models1:List, attack
     Returns:
         dict: dict that stores the different metrics, check retrieve_data for which metrics
     """
-    X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDataBase(config.dataset, POSSIBLE_PATHS, federated=True)()
+    X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDataBase(config.dataset, POSSIBLE_PATHS, True, config.train_size)()
     log_distribution(logger, X_train, y_train, y_test)
 
     target_model = retrieveorfit(target_model, "target_model", config, X_train, y_train, fName)
@@ -187,9 +189,9 @@ def train_all_federated(target_model, shadow_models, attack_models1:List, attack
         # TODO create test data for attack models! :)
         # for c in tqdm(range(config.nClasses), desc="> training attack models"):
         if config.target_rank != 0:
-            D_Train_Shadow = [devide_D_Train(X_shadow[i], y_shadow[i], config.target_rank) for i in range(n_shadows) ]  # make shadow_train the same size as the user we want to attack. 
-            X_train, y_train = devide_D_Train(X_train, y_train, config.target_rank)  # change D_target to be the same as actually used by the targeted user
-            X_test, y_test = devide_D_Train(X_test, y_test, config.target_rank)  # change D_test to be same size as targeted user
+            D_Train_Shadow = [devide_D_Train(X_shadow[i], y_shadow[i], config.target_rank, config.data_devision) for i in range(n_shadows) ]  # make shadow_train the same size as the user we want to attack. 
+            X_train, y_train = devide_D_Train(X_train, y_train, config.target_rank, config.data_devision)  # change D_target to be the same as actually used by the targeted user
+            X_test, y_test = devide_D_Train(X_test, y_test, config.target_rank, config.data_devision)  # change D_test to be same size as targeted user
         
         with ThreadPoolExecutor(max_workers=10) as executor:
             future_D_Train_Attack = [executor.submit(concurrent, config, logger, c, n_shadows, deepcopy(D_Train_Shadow), deepcopy(attack_models1)) for c in range(config.nClasses)  ]
@@ -263,7 +265,7 @@ def retrieve_data(target_model, shadow_model, attack_model, X_train, y_train, X_
     prec_train_target = precision_score(y_train, y_pred_train_target, average="weighted")
     data["precision train target"] = prec_train_target
     acc_test_target = accuracy_score(y_test, y_pred_test_target)
-    data["accuray test target"] = acc_test_target
+    data["accuracy test target"] = acc_test_target
     prec_test_target = precision_score(y_test, y_pred_test_target, average="weighted")
     data["precision test target"] = prec_test_target
     overfit_target = acc_train_target - acc_test_target
@@ -333,6 +335,8 @@ def experiment1():
     seed = 10
     datasets = ["healthcare", "synthetic-10", "synthetic-100"]
 
+    # datasets = ["healthcare", "synthetic-10", "synthetic-100"]
+
     # datasets = ["synthetic-10", "synthetic-20", "synthetic-50", "synthetic-100"]
 
     # targetArchitectures = ["XGBoost", "FederBoost-central"]
@@ -375,7 +379,9 @@ def experiment1():
                             max_depth=8,
                             max_tree=20,
                             nBuckets=35,
-                            save=False)
+                            save=False,
+                            data_devision=[0.25, 0.25, 0.25, 0.25],
+                            train_size=25_000)
                     create_table_config_variable("experiment1_targetandshadow", modeltype="FederBoost",
                                                  alpha=config.alpha, gamma=config.gamma, 
                                                  lam=config.lam, 
@@ -401,7 +407,7 @@ def experiment1():
     if rank == PARTY_ID.SERVER:
 
         name_model = targetArchitectures[0]
-        metrics = ["accuracy test attack", "recall test attack", "accuray test target", "overfitting target"]
+        metrics = ["accuracy test attack", "recall test attack", "accuracy test target", "overfitting target"]
         arguments = (all_data, to_be_tested, metrics, name_model, datasets)
         pickle.dump(arguments, open("./Saves/arguments.p", 'wb'))
         create_latex_table_1(all_data, to_be_tested, metrics, name_model, datasets, "./Table/experiment_1_.txt")
@@ -462,7 +468,9 @@ def experiment2():
             max_tree=20,
             nBuckets=35,
             save=True,
-            target_rank=1)
+            target_rank=1,
+            data_devision=[0.0125, 0.4875, 0.5],
+            train_size=2000)
             create_table_config_variable("experiment1_targetandshadow", modeltype="FederBoost",
                                         alpha=config.alpha, gamma=config.gamma, 
                                         lam=config.lam, 
@@ -496,7 +504,7 @@ def experiment2():
             elif targetArchitecture == "FederBoost-federated":
                 target_model = SFXGBoost(config, logger)
 
-                shadow_models = [SFXGBoost(config, logger) for _ in range(10)]  # TODO create the amount of shadow models allowed given by datasetretrieval
+                shadow_models = [SFXGBoost(config, logger) for _ in range(100)]  # TODO create the amount of shadow models allowed given by datasetretrieval
                 
                 # attack_models1 = [ [MLPClassifier(hidden_layer_sizes=(300, 100,50,1), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000) for l in range(config.max_depth)] for c in range(config.nClasses)]
                 
@@ -542,17 +550,20 @@ def main():
             experiment2()
     if False:
         dataset = "healthcare"
-        config = Config(experimentName="tmp",
-            nameTest= dataset + "klein 20 trees",
+        config = Config(experimentName = "experiment 2",
+            nameTest= dataset + " test",
             model="normal",
             dataset=dataset,
             lam=0.1, # 0.1 10
-            gamma=0.5,
+            gamma=0,
             alpha=0.0,
             learning_rate=0.3,
-            max_depth=8,
+            max_depth=12,
             max_tree=20,
-            nBuckets=100)
+            nBuckets=35,
+            save=False,
+            target_rank=1)
+        
         logger = MyLogger(config).logger
         if rank ==0 : logger.debug(config.prettyprint())
         if config.model == "normal":

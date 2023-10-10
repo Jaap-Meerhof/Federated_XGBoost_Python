@@ -14,8 +14,6 @@ def apply_DP(X, y):
     X + noise
     return X, y
 
-    return X, y
-
 def split_D(D, federated, train_size, n_shadows, fName):
 
     X = D[0]
@@ -76,15 +74,11 @@ def makeOneHot(y):
     y = encoder.transform(y).toarray()
     return y
 
-def getPurchase(num, paths, federated=False):
+def getPurchase(num, paths, federated=False, train_size=20_000):
     #first try local
     # 
     # logger.warning(f"getting purchase {num} dataset!")
 
-    train_size = 20_000
-    test_size = 10_000
-    random_state = 690
-    shadow_size = 30_000 # take in mind that this shadow_set is devided in 3 sets
     n_shadows = 10
     def returnfunc():
         X = check_mul_paths('acquire-valued-shoppers-challenge/' + 'purchase_100_features.p', paths)
@@ -97,7 +91,7 @@ def getPurchase(num, paths, federated=False):
         return split_D((X, y), federated, train_size, n_shadows, fName)        
     return returnfunc
 
-def getTexas(paths, federated=False):
+def getTexas(paths, federated=False, train_size=20_000):
     """
     size = 925_128
     features = 11
@@ -110,7 +104,6 @@ def getTexas(paths, federated=False):
     """
     def returnfunc():
         # logger.warning("getting Texas database!")
-        train_size = 50_000
         n_shadows = 10
 
         
@@ -138,7 +131,7 @@ POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
 # X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getTexas(POSSIBLE_PATHS)()
 
 
-def getMNIST(paths, federated=False):
+def getMNIST(paths, federated=False, train_size=2_000):
     """only of size 1797!
 
     Args:
@@ -168,9 +161,7 @@ def getMNIST(paths, federated=False):
     
 # getMNIST(None, False)()
 
-def getSynthetic(federated=False, n_classes=8):
-    train_size = 2_000
-    test_size = 2_000
+def getSynthetic(federated=False, n_classes=8, train_size=2_000):
     random_state = 420
     shadow_size = train_size*2   
     n_shadows = 10
@@ -188,7 +179,7 @@ def getSynthetic(federated=False, n_classes=8):
         """
         from sklearn.datasets import make_classification
         
-        X, y = make_classification(n_samples=train_size+test_size+(shadow_size * n_shadows),
+        X, y = make_classification(n_samples=(train_size*2)+(shadow_size * n_shadows),
                                     n_features=n_features, n_informative=8, n_redundant=0, n_clusters_per_class=1, 
                                     class_sep=1.0, n_classes=n_classes, random_state=random_state)
         y = y.reshape(-1, 1)
@@ -197,15 +188,15 @@ def getSynthetic(federated=False, n_classes=8):
 
         return split_D((X,y), federated, train_size, n_shadows, fName)
     return returnfunc
-# X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getSynthetic(False)()
+# X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getSynthetic(False, 10, 50_00)()
 # x = 1
-def getCensus(paths, federated=False):  # binary issue
+def getCensus(paths, federated=False, train_size=2000):  # binary issue
     pass
 
-def getDNA(paths, federated=False):
+def getDNA(paths, federated=False, train_size=2000):
     return
 
-def getWine(federated=False):
+def getWine(federated=False, train_size=2000):
     train_size = 10_000
     n_shadows = 10
 
@@ -232,7 +223,7 @@ def getWine(federated=False):
 
 
 
-def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/nehaprabhavalkar/av-healthcare-analytics-ii
+def getHealthcare(paths, federated=False, train_size=2_000): # https://www.kaggle.com/datasets/nehaprabhavalkar/av-healthcare-analytics-ii
     """retireves the Healtcare dataset from kaggle https://www.kaggle.com/datasets/nehaprabhavalkar/av-healthcare-analytics-ii
     general information:
     nFeatures = 16 
@@ -249,7 +240,6 @@ def getHealthcare(paths, federated=False): # https://www.kaggle.com/datasets/neh
         _type_: _description_
     """
     
-    train_size = 2_000
     n_shadows = 100
     # A MINIMUM OF 4 SHADOWS ARE NEEDED!!!
     def returnfunc():
@@ -280,16 +270,17 @@ POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
 # X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getHealthcare(POSSIBLE_PATHS, True)()
+# n_shadows = len(X_shadow)
 # x=1
-def getDataBase(dataBaseName, paths, federated=False):
+def getDataBase(dataBaseName, paths, federated=False, train_size=2000):
     """After setting the database in the config, this will retrieve the database
     """
-    get_databasefunc = {'purchase-10': getPurchase(10, paths, federated), 'purchase-20':getPurchase(20, paths, federated), 
-                    'purchase-50':getPurchase(50, paths, federated), 'purchase-100':getPurchase(100, paths, federated), 
-                    'texas':getTexas(paths, federated), 'healthcare':getHealthcare(paths, federated), 'MNIST':getMNIST(paths, federated), 
-                    'synthetic-10':getSynthetic(federated, 10), 'synthetic-20':getSynthetic(federated, 20), 
-                    'synthetic-50':getSynthetic(federated, 50), 'synthetic-100':getSynthetic(federated, 100), 
-                    'Census':getCensus(paths, federated), 'DNA':getDNA(paths, federated)
+    get_databasefunc = {'purchase-10': getPurchase(10, paths, federated, train_size), 'purchase-20':getPurchase(20, paths, federated, train_size), 
+                    'purchase-50':getPurchase(50, paths, federated, train_size), 'purchase-100':getPurchase(100, paths, federated, train_size), 
+                    'texas':getTexas(paths, federated, train_size), 'healthcare':getHealthcare(paths, federated, train_size), 'MNIST':getMNIST(paths, federated, train_size), 
+                    'synthetic-10':getSynthetic(federated, 10, train_size), 'synthetic-20':getSynthetic(federated, 20, train_size), 
+                    'synthetic-50':getSynthetic(federated, 50, train_size), 'synthetic-100':getSynthetic(federated, 100, train_size), 
+                    'Census':getCensus(paths, federated, train_size), 'DNA':getDNA(paths, federated, train_size)
                    }[dataBaseName]
     return get_databasefunc
 

@@ -14,7 +14,8 @@ np.set_printoptions(precision=4, suppress=True)
 
 class Config:
     def __init__(self, experimentName:str, nameTest:str, model:str, dataset:str, lam:float, gamma:float, 
-                 alpha:float, learning_rate:float, max_depth:int, max_tree:int, nBuckets:int, save:bool=True, target_rank:int=0):
+                 alpha:float, learning_rate:float, max_depth:int, max_tree:int, nBuckets:int, save:bool=True, 
+                 target_rank:int=0, data_devision:list=[0.5, 0.5], train_size:int=2000):
         self.experimentName = experimentName
         self.nameTest = nameTest
         self.model = model
@@ -29,6 +30,9 @@ class Config:
         self.nBuckets = nBuckets
         self.save = save
         self.target_rank = target_rank  # Participant's ID to attack for experiment 2
+        self.data_devision = data_devision
+        # assert (0.99 <= sum(self.data_devision)) and (sum(self.data_devision) <= 1) and len(self.data_devision) == comm.Get_size -1
+        self.train_size = train_size
 
         # self.save_location= "./Saves/" + nameTest + "_rank_" + str(rank)
         self.save_location= "/mnt/scratch_dir/meerhofj/Saves/" + nameTest + "_rank_" + str(rank)

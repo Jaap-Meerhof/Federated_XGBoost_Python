@@ -13,7 +13,7 @@ from sklearn.metrics import accuracy_score
 from SFXGBoost.common.pickler import save
 from SFXGBoost.view.table import create_latex_table_1
 # var = 9
-# arguments = pickle.load(open("./Saves/arguments.p", "rb"))
+arguments = pickle.load(open("./Saves/arguments.p", "rb"))
 # create_latex_table_1(all_data=arguments[0], to_be_tested=arguments[1], metrics=arguments[2], name_model=arguments[3], datasets=arguments[4], destination="./Table/experiment_1.txt")
 # pickle.dump(var, open("./Saves/kanker.p", 'wb'))
 # 10,5 works really well. 

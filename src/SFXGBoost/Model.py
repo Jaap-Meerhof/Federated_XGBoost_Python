@@ -17,7 +17,7 @@ class MSG_ID:
     Quantile_QJ = 86
     Quantile_nPrime_i = 89
 
-def devide_D_Train(X, y, t_rank):
+def devide_D_Train(X, y, t_rank, data_devision:list):
     """uses The same algorith as used when doing .fit() on my federated algorithm. 
 
     Args:
@@ -32,10 +32,8 @@ def devide_D_Train(X, y, t_rank):
     total_lenght = len(X)
     end, start = 0, 0
     if t_rank != 0:
-        rank0 = 0.0125 # size=25 when 2000
-        rank_devisions = [rank0, 1-rank0]
-        start = int(np.sum( [p*total_lenght for p in rank_devisions[:t_rank-1]]))
-        end = int(np.sum( [p*total_lenght for p in rank_devisions[:t_rank]]))
+        start = int(np.sum( [p*total_lenght for p in data_devision[:t_rank-1]]))
+        end = int(np.sum( [p*total_lenght for p in data_devision[:t_rank]]))
     else:
         elements_per_node = total_lenght//total_users
         start_end = [(i * elements_per_node, (i+1)* elements_per_node) for i in range(total_users)]
@@ -102,6 +100,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
         for nClass in range(config.nClasses):
             trees[nClass] = [SFXGBoostTree(id) for id in range(config.max_tree)]
         trees = np.array(trees)
+        self.nodes = [ [[] for _ in range(config.max_depth)] for _ in range(config.nClasses) ]  # refences to All nodes on a depth d and class c, used in membership inference
         super().__init__(config, logger, trees)
     
     def setSplits(self, splits):
@@ -218,6 +217,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                             Hnodes[c].append(hcn)
                     # send the gradients for every class's tree, the different nodes that have to be updated in that tree and the 
                     # print(f"sending gradients as rank {rank} on level {l}")
+                    self.logger.warning("sending G,H")
                     comm.send((Gnodes,Hnodes), PARTY_ID.SERVER, tag=MSG_ID.RESPONSE_GRADIENTS)
                     splits = comm.recv(source=PARTY_ID.SERVER, tag=MSG_ID.SPLIT_UPDATE)
                     nodes = self.update_trees(nodes, splits, l) # also update Instances
@@ -345,6 +345,8 @@ class SFXGBoost(SFXGBoostClassifierBase):
                         node.rightBranch.instances = np.logical_and([self.original_data.featureDict[fName][index] > sValue for index in range(self.nUsers)], node.instances)
                     new_nodes[c].append(node.leftBranch)
                     new_nodes[c].append(node.rightBranch)
+                    self.nodes[c][depth].append(node.leftBranch)
+                    self.nodes[c][depth].append(node.rightBranch)
                 else:
                     node.weight = splitInfo.weight
                     node.score = splitInfo.nodeScore
@@ -401,7 +403,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
             start_end = [(i * elements_per_node, (i+1)* elements_per_node) for i in range(total_users)]
 
             if rank != PARTY_ID.SERVER:
-                X_train_my, y_train_my = devide_D_Train(X_train, y_train, rank)
+                X_train_my, y_train_my = devide_D_Train(X_train, y_train, rank, self.config.data_devision)
 
             # split up the database between the users
             if rank == PARTY_ID.SERVER:
@@ -431,6 +433,11 @@ class SFXGBoost(SFXGBoostClassifierBase):
             return self
     
     def predict(self, X): # returns class number
+        """returns one dimentional array of multi-class predictions
+
+        Returns:
+            _type_: _description_
+        """
         y_pred = self.predict_proba(X) # get leaf node weights
         return np.argmax(y_pred, axis=1)
     

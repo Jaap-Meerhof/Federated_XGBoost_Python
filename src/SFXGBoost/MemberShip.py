@@ -20,7 +20,7 @@ def split_shadow(D_Shadow):
     """
     X = D_Shadow[0]
     y = D_Shadow[1]
-
+    # print(np.shape(X))
     split = len(X[:, 0]) // 2 # find what one third of the users are
     D_Train_Shadow = (X[:split, :], y[:split, :])
     D_Out_Shadow = (X[split:, :], y[split:, :])
@@ -116,31 +116,36 @@ def get_train_Attackmodel_1(config:Config, logger:Logger, n_shadows, c, d, D_Tra
     input = None
     D_Train_Attack = None  # c, l empty lists size is nshadows * (len(D_train_shadow)*2) * n_nodes # where n_nodes scales exponentially
     y=[]
-    max_lenght = 4_000 # try to devide the max_lenght over the different nodes over the available trees. 
+    max_lenght = 50_000 # try to devide the max_lenght over the different nodes over the available trees. 
     max_lenght_shadow = max_lenght/n_shadows
     max_length_shadow_tree = max_lenght_shadow / config.max_tree
 
     #TODO take randomly from t, node, then add all NO DUPES x's
-    n_nodes = 2^d
-    
+    #     
     for a in range(n_shadows):
-        shadow_model = retrieve("shadow_model_" + str(a), config)
-        for t in range(config.max_tree):
-            nodes = shadow_model.trees[c][t].root.get_nodes_depth(d)
-            max_length_shadow_tree_node = max_length_shadow_tree / len(nodes) if len(nodes) else 0  # avoiding devision by zero 
-            if max_length_shadow_tree_node < 1:
-                max_length_shadow_tree_node = 1
+        shadow_model:SFXGBoost = retrieve("shadow_model_" + str(a), config)
+        nodes = shadow_model.nodes[c][d]
 
-            for nodepos, node in enumerate(nodes):
-                x, labels_train = f_random(D_Train_Shadow[a], D_Train_Shadow[(a+2) % len(D_Train_Shadow)], seed=nodepos+t+a+c+d, take=max_length_shadow_tree_node)  #int(max_length_shadow_tree_node)
-                # z = shadow_model.predict_proba(x)
-                input = get_info_node(config, x, node)
-                y.extend(labels_train)
+        
+        indices = np.random.choice(int(len(nodes)), int(np.min((max_length_shadow_tree, len(nodes)))), replace=True)
+        random_nodes = nodes[indices]
+        
+        max_length_shadow_tree_node = None
+        if len(random_nodes) < max_length_shadow_tree:
+            max_length_shadow_tree_node = max_length_shadow_tree // len(random_nodes)
+        else:
+            max_length_shadow_tree_node = 1
 
-                if not D_Train_Attack is None: 
-                    D_Train_Attack = np.vstack((D_Train_Attack, input))
-                else:
-                    D_Train_Attack = input
+        for nodepos, node in enumerate(random_nodes):
+            x, labels_train = f_random(D_Train_Shadow[a], D_Train_Shadow[(a+2) % len(D_Train_Shadow)], seed=nodepos+a+c+d, take=max_length_shadow_tree_node)  #int(max_length_shadow_tree_node)
+            # z = shadow_model.predict_proba(x)
+            input = get_info_node(config, x, node)
+            y.extend(labels_train)
+
+            if not D_Train_Attack is None: 
+                D_Train_Attack = np.vstack((D_Train_Attack, input))
+            else:
+                D_Train_Attack = input
     return D_Train_Attack, np.array(y)  # .reshape(-1, 1)
 
 def get_input_attack2dot1(config:Config, logger:Logger, D_train_shadow, models, attack_models):
