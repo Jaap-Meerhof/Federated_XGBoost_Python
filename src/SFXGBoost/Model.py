@@ -123,7 +123,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                 # print("#####################")
 
                 nodes = [[self.trees[c][t].root] for c in range(self.config.nClasses)] 
-                for l in range(self.config.max_depth+1):
+                for d in range(self.config.max_depth):
                     G = [[ [] for _ in range(len(nodes[c])) ] for c in range(self.config.nClasses)]
                     H = [[ [] for _ in range(len(nodes[c])) ] for c in range(self.config.nClasses)]
                     for Pi in range(1, comm.Get_size()):
@@ -162,12 +162,12 @@ class SFXGBoost(SFXGBoostClassifierBase):
                         #     results = list(executor.map(test, range(len(nodes[c]))))
                         # print(results)
                         for i, n in enumerate(nodes[c]): #TODO multithread!
-                            split_cn = self.find_split(splits, G[c][i], H[c][i], l == self.config.max_depth)
+                            split_cn = self.find_split(splits, G[c][i], H[c][i], d == self.config.max_depth)
                             splittingInfos[c].append(split_cn)
                     
                     for Pi in range(1, comm.Get_size()):
                         comm.send(splittingInfos, Pi, tag=MSG_ID.SPLIT_UPDATE )
-                    nodes = self.update_trees(nodes, splittingInfos, l)
+                    nodes = self.update_trees(nodes, splittingInfos, d)
                     # update own my own trees to attack users
         
         ####################
@@ -203,7 +203,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                 G, H = np.array(G).T, np.array(H).T  # (nClasses, nUsers)
                 nodes = [[self.trees[c][t].root] for c in range(self.config.nClasses)]
                 
-                for l in range(self.config.max_depth+1):
+                for d in range(self.config.max_depth):
                     Gnodes = [[] for _ in range(self.config.nClasses)]
                     Hnodes = [[] for _ in range(self.config.nClasses)]
 
@@ -220,7 +220,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     self.logger.warning("sending G,H")
                     comm.send((Gnodes,Hnodes), PARTY_ID.SERVER, tag=MSG_ID.RESPONSE_GRADIENTS)
                     splits = comm.recv(source=PARTY_ID.SERVER, tag=MSG_ID.SPLIT_UPDATE)
-                    nodes = self.update_trees(nodes, splits, l) # also update Instances
+                    nodes = self.update_trees(nodes, splits, d) # also update Instances
                 # for c in range(self.config.nClasses):
                 #     FLVisNode(self.logger, self.trees[c][t].root).display(t)
                 update_pred = np.array([tree.predict(orgData) for tree in self.trees[:, t]]).T
@@ -345,13 +345,19 @@ class SFXGBoost(SFXGBoostClassifierBase):
                         node.rightBranch.instances = np.logical_and([self.original_data.featureDict[fName][index] > sValue for index in range(self.nUsers)], node.instances)
                     new_nodes[c].append(node.leftBranch)
                     new_nodes[c].append(node.rightBranch)
-                    self.nodes[c][depth].append(node.leftBranch)
-                    self.nodes[c][depth].append(node.rightBranch)
-                else:
+                else:  # leaf node
                     node.weight = splitInfo.weight
+                    for p in range(0, comm.Get_size() -1):
+                        if rank == PARTY_ID.SERVER:
+                            # print(f"DEBUG gpi shape{np.array(node.Gpi[p]).shape}")
+                            node.weightpi[p], scorep = FLTreeNode.compute_leaf_param(node.Gpi[p][0], node.Hpi[p][0], self.config.lam, self.config.alpha)
+                            node.weightpi[p] = node.weightpi[p] * self.config.learning_rate
                     node.score = splitInfo.nodeScore
                     node.leftBranch = None
                     node.rightBranch = None
+
+                self.nodes[c][depth].append(node)
+
         return new_nodes
 
     def appendGradients(self, instances, G, H, orgData):
@@ -394,7 +400,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
 
     
     def fit(self, X_train, y_train, fName):
-            quantile = QuantiledDataBase(DataBase.data_matrix_to_database(X_train, fName) )
+            quantile = QuantiledDataBase(DataBase.data_matrix_to_database(X_train, fName), self.config ) ## DEL CONFIG if errors occur 12-oct
                 
             initprobability = (sum(y_train))/len(y_train)
             total_users = comm.Get_size() - 1
@@ -432,17 +438,17 @@ class SFXGBoost(SFXGBoostClassifierBase):
             self.boost(initprobability)
             return self
     
-    def predict(self, X): # returns class number
+    def predict(self, X, pi=-1): # returns class number
         """returns one dimentional array of multi-class predictions
 
         Returns:
             _type_: _description_
         """
-        y_pred = self.predict_proba(X) # get leaf node weights
+        y_pred = self.predict_proba(X, pi) # get leaf node weights
         return np.argmax(y_pred, axis=1)
     
-    def predict_proba(self, X): # returns probabilities of all classes
-        y_pred = self.predictweights(X) # returns weights
+    def predict_proba(self, X, pi=-1): # returns probabilities of all classes
+        y_pred = self.predictweights(X, pi) # returns weights
         for rowid in range(np.shape(y_pred)[0]):
             row = y_pred[rowid, :]
             wmax = max(row)
@@ -451,7 +457,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
             y_pred[rowid, :] = np.exp(row-wmax) / wsum
         return y_pred
     
-    def predictweights(self, X): # returns weights
+    def predictweights(self, X, pi=-1): # returns weights
             # if type(X) == np.ndarray:
             #     X = DataBase.data_matrix_to_database(X, self.fName)
 
@@ -471,7 +477,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     # self.logger.warning(f"PREDICTION id {treeID}")
                     # b = FLVisNode(self.logger, tree.root)
                     # b.display(treeID)
-                    update_pred = tree.predict(testDataBase)
+                    update_pred = tree.predict(testDataBase, pi)
                     y_pred[:, c] += update_pred #* self.config.learning_rate
             return y_pred
 
@@ -491,7 +497,7 @@ class SFXGBoostTree:
         self.root.nUsers = nUsers
         self.root.instances = instances
 
-    def predict(self, data:DataBase):
+    def predict(self, data:DataBase, pi=-1):
         curNode = self.root
         outputs = np.empty(data.nUsers, dtype=float)
 
@@ -505,4 +511,7 @@ class SFXGBoostTree:
                 elif(direction == Direction.RIGHT):
                     curNode = curNode.rightBranch
             outputs[userId] = curNode.weight
+            if pi > 0:  # 0 == server, > 0 == participants
+                outputs[userId] = curNode.weightpi[pi-1]
+            # TODO add weightpi return
         return outputs

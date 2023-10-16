@@ -4,7 +4,7 @@ from scipy import rand
 
 from SFXGBoost.common.BasicTypes import Direction
 from SFXGBoost.data_structure.treestructure import SplittingInfo
-from SFXGBoost.config import rank
+from SFXGBoost.config import Config, rank
 
 class QuantileParam:
     epsilon = 0.05 # privacy parameter
@@ -17,14 +17,14 @@ class FeatureData:
 
 class QuantiledFeature(FeatureData):
     
-    def __init__(self, name, dataVector, splittingMatrix = None, splittingCandidates = None) -> None:
+    def __init__(self, name, dataVector, splittingMatrix = None, splittingCandidates = None, config:Config = None) -> None:
         super().__init__(name, dataVector)
         if (splittingCandidates is None):
-            self.splittingMatrix, self.splittingCandidates = QuantiledFeature.quantile(self.data, QuantileParam) 
+            self.splittingMatrix, self.splittingCandidates = QuantiledFeature.quantile(self.data, config) 
         else:
             self.splittingMatrix, self.splittingCandidates = splittingMatrix, splittingCandidates
 
-    def quantile(fData: FeatureData, param: QuantileParam):
+    def quantile(fData: FeatureData, config:Config = None):
         splittingMatrix = []
         splittingCandidates = []
         # from ddsketch import DDSketch
@@ -32,16 +32,19 @@ class QuantiledFeature(FeatureData):
 
         # for v in fData:
         #     sketch.add(v)
+        nBuckets = 100
+        if config != None:
+            nBuckets = config.nBuckets
 
-        if len(np.unique(fData)) > 101:
+        if len(np.unique(fData)) > nBuckets+1:
             pass
-            range_min = np.min(fData)
-            range_max = np.max(fData)
+            # range_min = np.min(fData)
+            # range_max = np.max(fData)
             from ddsketch import DDSketch
             sketch = DDSketch()
             for value in fData:
                 sketch.add(value)
-            quantiles = np.array([sketch.get_quantile_value(q/100) for q in range(0, 100, 1)])
+            quantiles = np.array([sketch.get_quantile_value(q/nBuckets) for q in range(0, nBuckets, 1)])
 
             # print(f"DEBUG: {quantiles}")
             splittingCandidates = quantiles
@@ -199,19 +202,20 @@ class HorizontalQuantiledDataBase(DataBase):
 
 
 class QuantiledDataBase(DataBase):
-    def __init__(self, dataBase:DataBase = None) -> None:
+    def __init__(self, dataBase:DataBase = None, config:Config = None) -> None:
         super().__init__()
         self.nUsers = dataBase.nUsers
+        self.config = config
         # Perform the quantiled for all the feature (copy, don't change the orgiginal data)
         if dataBase is not None:
             for fName, fData in dataBase.featureDict.items():
-                self.featureDict[fName] = QuantiledFeature(fName, fData)
+                self.featureDict[fName] = QuantiledFeature(fName, fData, config=self.config)
 
         self.gradVec = []
         self.hessVec = []
     
     def splitupHorizontal(self, start:int, end:int):
-        newQDatabase = QuantiledDataBase(DataBase())
+        newQDatabase = QuantiledDataBase(DataBase(), self.config)
         newQDatabase.nUsers = end - start
         newQDatabase.featureDict = {}
         # self.splittingMatrix, self.splittingCandidates = QuantiledFeature.quantile(self.data, QuantileParam)     
@@ -219,9 +223,9 @@ class QuantiledDataBase(DataBase):
         for featurestring, qFeature in self.featureDict.items():
             newdata = qFeature.data[start:end]
             if qFeature.splittingCandidates.size != 0:
-                newQDatabase.featureDict[featurestring] = QuantiledFeature(name=featurestring, dataVector=newdata, splittingCandidates=qFeature.splittingCandidates)
+                newQDatabase.featureDict[featurestring] = QuantiledFeature(name=featurestring, dataVector=newdata, splittingCandidates=qFeature.splittingCandidates, config=self.config)
             else: # empty
-                newQDatabase.featureDict[featurestring] = QuantiledFeature(name=featurestring, dataVector=newdata, splittingCandidates=qFeature.splittingCandidates) 
+                newQDatabase.featureDict[featurestring] = QuantiledFeature(name=featurestring, dataVector=newdata, splittingCandidates=qFeature.splittingCandidates, config=self.config) 
         return newQDatabase
     
     def get_info_string(self):

@@ -44,11 +44,11 @@ def f_random(D_Train_Shadow, D_Out_Shadow, seed=0, take=0):
     X_Train_Shadow = D_Train_Shadow[0][:min_lenght, :]
     X_Out_Shadow = D_Out_Shadow[0][:min_lenght, :]
     if take != 0:
-        take = take//2
+        take = take//2 # TODO investigate centralised!
         if seed != 0:
             np.random.seed(int(seed))
-        take = min(take, min_lenght)  # don't take more than you can
-        indices = np.random.choice(min_lenght, int(take), replace=True)
+        take = min(take, min_lenght) # don't take more than you can
+        indices = np.random.choice(min_lenght, int(take), replace=False)
         X_Train_Shadow = X_Train_Shadow[indices]
         X_Out_Shadow = X_Out_Shadow[indices]
 
@@ -70,10 +70,15 @@ def f_random(D_Train_Shadow, D_Out_Shadow, seed=0, take=0):
     # print(f"X_Train_Attack = {X_Train_Attack.shape}")
     return X_Train_Attack, labels
 
-def create_D_attack_centralised(shadow_model_s, D_Train_Shadow, D_Out_Shadow):
+def create_D_attack_centralised(shadow_model_s, D_Train_Shadow, D_Out_Shadow, config:Config=None):
     # Shadow_model_s can be multiple shadow_models! TODO deal with that!
     x, labels = f_random(D_Train_Shadow, D_Out_Shadow)
-    z = shadow_model_s.predict_proba(x)
+    z = None
+    if type(shadow_model_s) == SFXGBoost:
+        print(f"target rank = {config.target_rank}")
+        z = shadow_model_s.predict_proba(x, config.target_rank)
+    else:
+        z = shadow_model_s.predict_proba(x)
     # z_top_indices = np.argsort(z)[::-1][:3] # take top 3 sorted by probability
     # z = np.take(z, z_top_indices) # take top 3
     return z, labels
@@ -84,7 +89,7 @@ def get_G_H(config:Config, node):
     else:
         return flatten_list([node.G, node.H])
 
-def get_info_node(config:Config, x, node=None):
+def get_info_node(config:Config, x:np.array, node=None):
     # for node in nodes:
     splittinginfo = []
     parent:FLTreeNode = node.parent
@@ -116,57 +121,39 @@ def get_train_Attackmodel_1(config:Config, logger:Logger, n_shadows, c, d, D_Tra
     input = None
     D_Train_Attack = None  # c, l empty lists size is nshadows * (len(D_train_shadow)*2) * n_nodes # where n_nodes scales exponentially
     y=[]
-    max_lenght = 50_000 # try to devide the max_lenght over the different nodes over the available trees. 
-    max_lenght_shadow = max_lenght/n_shadows
-    max_length_shadow_tree = max_lenght_shadow / config.max_tree
+    max_length = 50_000 # try to devide the max_lenght over the different nodes over the available trees. 
+    max_length_shadow = max_length//n_shadows
 
     #TODO take randomly from t, node, then add all NO DUPES x's
     #     
     for a in range(n_shadows):
+        logger.warning(f"attack1 creation shadow model {a} out of {n_shadows} for c={c}, d={d}")
         shadow_model:SFXGBoost = retrieve("shadow_model_" + str(a), config)
-        nodes = shadow_model.nodes[c][d]
+        nodes = np.array(shadow_model.nodes[c][d])  # can be zero
+        if len(nodes) == 0:
+            max_length_shadow += max_length_shadow//(n_shadows-a) # devide the nodes to be put here over the other nodes of other shadow models
+            continue
+        x_len = len(D_Train_Shadow[a][0]) + len(D_Train_Shadow[(a+2)%len(D_Train_Shadow)][0])
+        
+        wish_to_take = int(np.min((max_length_shadow, x_len, len(nodes))))
+        
+        # TODO take 1, but make it unique such that x is not used twice, not vital but could skew results a tiny bit. 
 
+        x, labels_train = f_random(D_Train_Shadow[a], D_Train_Shadow[(a+2) % len(D_Train_Shadow)], seed=a+c+d, take=wish_to_take) #int(max_length_shadow_tree_node)
         
-        indices = np.random.choice(int(len(nodes)), int(np.min((max_length_shadow_tree, len(nodes)))), replace=True)
+        indices = np.random.choice(int(len(nodes)), len(x), replace=False)
         random_nodes = nodes[indices]
-        
-        max_length_shadow_tree_node = None
-        if len(random_nodes) < max_length_shadow_tree:
-            max_length_shadow_tree_node = max_length_shadow_tree // len(random_nodes)
-        else:
-            max_length_shadow_tree_node = 1
 
         for nodepos, node in enumerate(random_nodes):
-            x, labels_train = f_random(D_Train_Shadow[a], D_Train_Shadow[(a+2) % len(D_Train_Shadow)], seed=nodepos+a+c+d, take=max_length_shadow_tree_node)  #int(max_length_shadow_tree_node)
             # z = shadow_model.predict_proba(x)
-            input = get_info_node(config, x, node)
-            y.extend(labels_train)
+            input = get_info_node(config, np.array([x[nodepos]]), node)  # take one of the x's linked to the node, and get the G,H
+            y.append(labels_train[nodepos])  # append would be nicer, 
 
             if not D_Train_Attack is None: 
                 D_Train_Attack = np.vstack((D_Train_Attack, input))
             else:
                 D_Train_Attack = input
     return D_Train_Attack, np.array(y)  # .reshape(-1, 1)
-
-def get_input_attack2dot1(config:Config, logger:Logger, D_train_shadow, models, attack_models):
-    
-
-    input_attack_2 = []
-    y_attack_2 = []
-    nModels = len(models)
-
-    D_train_shadow_offset = [D_train_shadow[a+1] for a in range(nModels)]
-    for c in config.nClasses:
-        for d in config.max_depth:
-            x_attack_1_cd, y_attack_1_cd = get_train_Attackmodel_1(config, logger, models, c, d, D_train_shadow_offset)
-            y_pred = attack_models[c][d].predict_proba(x_attack_1_cd)
-            if input_attack_2 == []:
-                input_attack_2 = y_pred
-            else:
-                input_attack_2 = np.column_stack((input_attack_2, y_pred))
-            y_attack_2.append(y_attack_1_cd)
-    return input_attack_2, y_attack_2
-
 
 def get_input_attack2(config:Config, D_Train_Shadow, n_models, attack_models):            
     input_attack_2 = []
@@ -192,17 +179,20 @@ def get_input_attack2(config:Config, D_Train_Shadow, n_models, attack_models):
         for c in range(config.nClasses):
             for d in range(config.max_depth):
                 all_p = None
-                for t in range(config.max_tree):
-                    nodes = model.trees[c][t].root.get_nodes_depth(d)
-                    if nodes == []:
-                        continue
-                    for node in nodes:
-                        node_params = get_info_node(config, x ,node) #size = 2000
-                        list_of_outputs = attack_models[c][d].predict_proba(node_params)[:, 1] # returns two dimentional array!!!!
-                        if all_p is None:
-                            all_p = list_of_outputs
-                        else:
-                            all_p = np.column_stack((all_p, list_of_outputs)) # all probas for every x
+                # nodes = model.trees[c][t].root.get_nodes_depth(d)
+                nodes = model.nodes[c][d]
+                if nodes == []:
+                    continue
+                for node in nodes:
+                    
+                    node_params = get_info_node(config, x ,node) #size = 2000
+                    list_of_outputs = attack_models[c][d].predict_proba(node_params)[:, 1] # returns two dimentional array!!!!
+                    
+                    if all_p is None:
+                        all_p = list_of_outputs
+                    else:
+                        all_p = np.column_stack((all_p, list_of_outputs)) # all probas for every x
+                
                 if all_p is None:
                     print(f"Warning, at depth {d} of model {a} no nodes were found accross all trees of class {c}?!")
                     if (input is None):
@@ -210,9 +200,6 @@ def get_input_attack2(config:Config, D_Train_Shadow, n_models, attack_models):
                     else:
                         input = np.column_stack((input, np.zeros( (x.shape[0],1) )))
                 else:
-                    # print("----")
-                    # print( all_p ) 
-                    # print("----")
                     avg = np.average(all_p, axis=1).reshape((-1,1))
                     # min = np.min(all_p, axis=1).reshape((-1,1))
                     # max = np.max(all_p, axis=1).reshape((-1,1))

@@ -7,6 +7,9 @@ dataset = 'purchase-10'
 dataset_list = ['purchase-10', 'purchase-20', 'purchase-50', 'purchase-100', 'texas', 'MNIST', 'synthetic', 'Census', 'DNA']
 
 def apply_DP(X, y):
+    import pydp
+    pydp.algorithms.laplacian.BoundedStandardDeviation
+    pydp.LaplacePrivacy({'epsilon':epsilon})
     sensitivity = 1
     epsilon = 1
     scale = sensitivity/epsilon
@@ -240,10 +243,14 @@ def getHealthcare(paths, federated=False, train_size=2_000): # https://www.kaggl
         _type_: _description_
     """
     
-    n_shadows = 100
+    n_shadows = 300
     # A MINIMUM OF 4 SHADOWS ARE NEEDED!!!
     def returnfunc():
         train = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data", paths)
+        # train_dp = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data_dp", paths)
+
+        # x = pd.read_csv('/data/BioGrid/meerhofj/Database/AV_HealthcareAnalyticsII/train_data_dp.tsv', sep='\t')
+
         # test = check_mul_paths_csv("AV_HealthcareAnalyticsII/test_data", paths)
         # dict = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data_dictionary", paths)
         # sample = check_mul_paths_csv("AV_HealthcareAnalyticsII/sample_sub", paths)
@@ -309,3 +316,5 @@ def getConfigParams(dataBaseName): # retreive n_classes, n_features
                         'DNA':(-1, -1)
                    }[dataBaseName]
     return get_databasefunc[0], get_databasefunc[1]
+
+# x = 1

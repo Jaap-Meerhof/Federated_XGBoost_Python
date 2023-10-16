@@ -13,17 +13,18 @@ from sklearn.metrics import accuracy_score
 from SFXGBoost.common.pickler import save
 from SFXGBoost.view.table import create_latex_table_1
 # var = 9
+gpi = pickle.load(open("Gpi.p", "rb"))
+
 arguments = pickle.load(open("./Saves/arguments.p", "rb"))
 # create_latex_table_1(all_data=arguments[0], to_be_tested=arguments[1], metrics=arguments[2], name_model=arguments[3], datasets=arguments[4], destination="./Table/experiment_1.txt")
-# pickle.dump(var, open("./Saves/kanker.p", 'wb'))
 # 10,5 works really well. 
-# shadow = pickle.load(open('Saves/healthcare test_rank_1/healthcare_shadow_model_0.p', 'rb'))
-D_train = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_Train_Attack_0,11.p', 'rb'))
+shadow = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_shadow_model_1.p', 'rb'))
+D_train = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_Train_Attack_0,3.p', 'rb'))
 
 # D_test = pickle.load(open('Saves/healthcare test_rank_0/healthcare_D_test_attack2.p', 'rb'))
 
 # tmp = pickle.load(open('Saves/healthcare test_rank_0/healthcare_D_train_attack2.p', 'rb'))
-if True:
+if False:
     x = 1
     D_train = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_train_attack2.p', 'rb'))
     np.column_stack((D_train[0][7], D_train[0][14], D_train[0][21]))

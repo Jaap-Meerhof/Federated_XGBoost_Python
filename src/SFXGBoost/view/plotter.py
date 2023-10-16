@@ -73,12 +73,12 @@ def plot_histogram(datasets, data, title="Sample text", y_label="y_label", desti
     day = date.today().strftime("%b-%d-%Y")
     curTime = time.strftime("%H:%M", time.localtime())
     destination = destination.replace(".jpeg", f"{day},{curTime}.jpeg")
-
     width = 0.25
     multiplier = 0
     x = np.arange(len(datasets))
     fig, ax = plt.subplots(layout='constrained')
     for attribute, measurements in data.items():
+        measurements = [round(value, 3,) for value in measurements]
         offset = width * multiplier
         rects = ax.bar(x+offset, measurements, width, label=attribute)
         ax.bar_label(rects, padding=3)

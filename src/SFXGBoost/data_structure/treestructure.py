@@ -52,6 +52,7 @@ class TreeNode:
         self.weight = weight
         self.leftBranch = leftBranch
         self.rightBranch = rightBranch
+        self.weightpi = [ 0 for _ in range(comm.Get_size() -1)]
         
 
     def logNode(self, logger):
@@ -89,7 +90,7 @@ class FLTreeNode(TreeNode):
         self.Hpi = [ [] for _ in range(comm.Get_size() - 1)]
         self.splitting_sgh = None  # NOT USED YET
         self.splitting_sgh = None  # store parent's splits, + your gradients
-        
+
     def get_nodes_depth(self, l, cur_l=0):
         """retrieves all the nodes that are at depth l [0, max_depth]
 

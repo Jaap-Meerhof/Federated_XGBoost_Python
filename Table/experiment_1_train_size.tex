@@ -1,0 +1,13 @@
+\begin{table*}[]\centering
+\begin{tabular}{|c| *{12}{m{1.0cm}|}}
+\hline\rowcolor{gray!50}
+\cellcolor{gray!80} train_size & \multicolumn{4}{c|}{healthcare} & \multicolumn{4}{c|}{synthetic-10} & \multicolumn{4}{c|}{synthetic-100}\\\hline 
+& accuracy attack & recall attack & accuracy target & overfitting target & accuracy attack & recall attack & accuracy target & overfitting target & accuracy attack & recall attack & accuracy target & overfitting target\\\hline
+1000 & 0.67 & 0.71 & 0.31 & 0.64 & 0.72 & 0.76 & 0.58 & 0.42 & 0.85 & 0.90 & 0.07 & 0.93\\ \hline
+2000 & 0.59 & 0.66 & 0.31 & 0.60 & 0.69 & 0.70 & 0.61 & 0.39 & 0.84 & 0.89 & 0.12 & 0.88\\ \hline
+5000 & 0.54 & 0.54 & 0.28 & 0.34 & 0.60 & 0.57 & 0.69 & 0.28 & 0.77 & 0.80 & 0.19 & 0.80\\ \hline
+10000 & 0.51 & 0.43 & 0.23 & 0.19 & 0.54 & 0.52 & 0.72 & 0.20 & 0.70 & 0.72 & 0.20 & 0.77\\ \hline
+\end{tabular} 
+\caption{FederBoost-central's attack metrics on train_size.}
+\label{tab:experiment1_train_size}
+\end{table*}

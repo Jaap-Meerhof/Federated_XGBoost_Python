@@ -5,7 +5,7 @@ def create_latex_table_tmp(h_axis, data, name):
 
     latex_table = "\\begin{table}[h]\n"
     latex_table += "\\centering\n"
-    latex_table += "\\begin{tabular}{| "+ "|".join(["c" for _ in h_axis]) + "|}\n\\hline"
+    latex_table += "\\begin{tabular}{|"+ "|".join(["c" for _ in h_axis]) + "|}\n\\hline"
     latex_table += "\n" + " & ".join(h_axis) + "\\\\\n\\hline\n"
 
     for key, value in data.items():
@@ -18,6 +18,8 @@ def create_latex_table_tmp(h_axis, data, name):
 
     output_filename = name + ".tex"
     
+    output_filename = output_filename.replace("_", "\_")
+
     with open(output_filename, 'w') as f:
         f.write(latex_table)
 
@@ -33,16 +35,6 @@ def create_table_config_variable(name, modeltype, *args, **kwargs):
     data["model"] = modeltype
     create_latex_table_tmp(h_axis, data, "./Table/config_" + name)
     return
-    if modeltype(model) is xgb.XGBClassifier:
-        pass
-        xgb.XGBClassifier.get_params
-    elif modeltype(model) is MLPClassifier:
-        data = kwargs
-        create_latex_table_tmp(h_axis, data, "./Table/config_" + name)
-    elif modeltype(model) is SFXGBoost:
-        # create_table_config(kwargs["alpha"],kwargs["gamma"], kwargs["lam"], kwargs["learning_rate"], kwargs["max_depth"], kwargs["max_tree"], )
-        data = kwargs
-        create_latex_table_tmp(h_axis, data, "./Table/config_" + name)
     
 def create_latex_table_1(all_data, to_be_tested, metrics, name_model, datasets, destination="Table/experiment_1_.txt"):
     
