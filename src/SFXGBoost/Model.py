@@ -134,8 +134,9 @@ class SFXGBoost(SFXGBoostClassifierBase):
                             for i, n in enumerate(nodes[c]):
                                 Gpi = GH[0]
                                 Hpi = GH[1]
-                                n.Gpi[Pi-1] = Gpi[c][i]
-                                n.Hpi[Pi-1] = Hpi[c][i]
+                                if self.config.target_rank > 0:  # save memory if we are not gonna use Gpi
+                                    n.Gpi[Pi-1] = Gpi[c][i]
+                                    n.Hpi[Pi-1] = Hpi[c][i]
                                 if Pi == 1:                        
                                     G[c][i] =  Gpi[c][i]  # I now save the gradients in the nodes, I don't really need this anymore
                                     H[c][i] =  Hpi[c][i]  # I now save the gradients in the nodes, I don't really need this anymore
@@ -348,15 +349,15 @@ class SFXGBoost(SFXGBoostClassifierBase):
                 else:  # leaf node
                     node.weight = splitInfo.weight
                     for p in range(0, comm.Get_size() -1):
-                        if rank == PARTY_ID.SERVER:
+                        if rank == PARTY_ID.SERVER and self.config.target_rank > 0:
                             # print(f"DEBUG gpi shape{np.array(node.Gpi[p]).shape}")
-                            node.weightpi[p], scorep = FLTreeNode.compute_leaf_param(node.Gpi[p][0], node.Hpi[p][0], self.config.lam, self.config.alpha)
-                            node.weightpi[p] = node.weightpi[p] * self.config.learning_rate
+                            w, scorep = FLTreeNode.compute_leaf_param(node.Gpi[p][0], node.Hpi[p][0], self.config.lam, self.config.alpha)
+                            node.weightpi[p] = w * self.config.learning_rate
                     node.score = splitInfo.nodeScore
                     node.leftBranch = None
                     node.rightBranch = None
 
-                self.nodes[c][depth].append(node)
+                    self.nodes[c][depth].append(node) # only add leaf nodes maybe?
 
         return new_nodes
 

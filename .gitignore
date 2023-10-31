@@ -2,6 +2,8 @@ Log/
 error*.txt
 output*.txt
 Saves/
+Plots/
+Table/
 # VSCodeCounter
 
 .VSCodeCounter/

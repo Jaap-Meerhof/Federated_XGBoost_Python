@@ -31,29 +31,42 @@ def plot_acc_one(data, labels, destination='plot.png', name='Sample Text', subte
     # plt.show()
     plt.savefig(destination, format="jpeg", dpi=1200, bbox_inches='tight')
 
-def plot_experiment2(all_data:dict):
+def plot_experiment(all_data:dict, experiment_number:int):
     """Plots accuracy and precision of the attack in one plot with two subplots
     and plots accuracy and precision of target model in one plot
 
     All_data = {name_network: {dataset:{precision,...,metric}}}
     Args:
         all_data (_type_): _description_
-        destination (str, optional): _description_. Defaults to "Plots/experiment2.jpeg".
+        destination (str, optional): _description_. Defaults to f"Plots/experiment{experiment_number}.jpeg".
     """
     data_acc = {}
     data_prec = {}
+    data_acc_test = {}
+    data_overfitting = {}
+
     for name, datasets in all_data.items():
         data_acc[name] = []
         data_prec[name] = []
+        data_acc_test[name] = []
+        data_overfitting[name] = []
         for dataset, metrics in datasets.items():
             precision_attack = metrics["precision test attack"]
             accuracy_attack = metrics["accuracy test attack"]
+            accuracy_test = metrics["accuracy test target"]
+            overfitting = metrics["overfitting target"]
             data_acc[name].append(accuracy_attack)
             data_prec[name].append(precision_attack)
+            data_acc_test[name].append(accuracy_test)
+            data_overfitting[name].append(overfitting)
         
     datasets = list(all_data[list(all_data.keys())[0]].keys())
-    plot_histogram(datasets, data_acc, title="accuracy attack", y_label="accuracy", destination="Plots/experiment2_acc.jpeg")
-    plot_histogram(datasets, data_prec, title="precision attack", y_label="precision", destination="Plots/experiment2_precision.jpeg")
+    plot_histogram(datasets, data_acc, title="accuracy attack", y_label="accuracy", destination=f"Plots/experiment{experiment_number}_acc_attack.jpeg")
+    plot_histogram(datasets, data_prec, title="precision attack", y_label="precision", destination=f"Plots/experiment{experiment_number}_precision.jpeg")
+    plot_histogram(datasets, data_acc_test, title="accuracy test target", y_label="accuracy", destination=f"Plots/experiment{experiment_number}_acc_test.jpeg")
+    plot_histogram(datasets, data_overfitting, title="overfitting target", y_label="overfitting", destination=f"Plots/experiment{experiment_number}_overfitting.jpeg")
+
+
 
 def plot_histogram(datasets, data, title="Sample text", y_label="y_label", destination="Plots/experiment2.jpeg"):
     """_summary_
@@ -75,19 +88,25 @@ def plot_histogram(datasets, data, title="Sample text", y_label="y_label", desti
     destination = destination.replace(".jpeg", f"{day},{curTime}.jpeg")
     width = 0.25
     multiplier = 0
+    one_value = False
     x = np.arange(len(datasets))
     fig, ax = plt.subplots(layout='constrained')
     for attribute, measurements in data.items():
         measurements = [round(value, 3,) for value in measurements]
+        if np.max(measurements) >= 0.9:
+            one_value = True
         offset = width * multiplier
         rects = ax.bar(x+offset, measurements, width, label=attribute)
-        ax.bar_label(rects, padding=3)
+        ax.bar_label(rects, label_type='edge', padding=-15)
         multiplier += 1
     ax.set_ylabel(y_label)
     ax.set_title(title)
     ax.set_xticks(x+width, datasets)
     ax.legend(loc='upper left', ncol=3)
-    ax.set_ylim(0, 1)
+    if one_value:
+        ax.set_ylim(0, 1.1)
+    else:
+        ax.set_ylim(0, 1)
     plt.savefig(destination, dpi=1200, format='jpeg')
     # plt.show()
 

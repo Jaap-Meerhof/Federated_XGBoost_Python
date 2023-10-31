@@ -1,11 +1,10 @@
 from SFXGBoost.config import Config, rank, comm, MyLogger
-from SFXGBoost.Model import PARTY_ID, SFXGBoostClassifierBase, SFXGBoost, devide_D_Train
-from SFXGBoost.data_structure.databasestructure import QuantiledDataBase, DataBase
-from SFXGBoost.MemberShip import preform_attack_centralised, split_shadow, create_D_attack_centralised, predict_federated, get_input_attack2, DepthNN, get_train_Attackmodel_1 
+from SFXGBoost.Model import PARTY_ID, SFXGBoost, devide_D_Train
+from SFXGBoost.MemberShip import split_shadow, create_D_attack_centralised, predict_federated, get_input_attack2, DepthNN, get_train_Attackmodel_1 
 from SFXGBoost.common.pickler import *
 import SFXGBoost.view.metric_save as saver
 from SFXGBoost.dataset.datasetRetrieval import getDataBase
-from SFXGBoost.view.plotter import plot_experiment2, plot_auc
+from SFXGBoost.view.plotter import plot_experiment, plot_auc
 from SFXGBoost.view.table import create_latex_table_1, create_table_config_variable
 from typing import List
 import numpy as np
@@ -28,75 +27,10 @@ def log_distribution(logger, X_train, y_train, y_test):
     logger.warning("DataDistribution, nTrain: %d, zeroRate: %f, nTest: %d, ratioTest: %f, nFeature: %d", 
     nTrain, rTrain, nTest, rTest, X_train.shape[1])
 
-def fit(X_train, y_train, X_test, fName, model):
-    quantile = QuantiledDataBase(DataBase.data_matrix_to_database(X_train, fName))
-
-    initprobability = (sum(y_train))/len(y_train)
-    total_users = comm.Get_size() - 1
-    total_lenght = len(X_train)
-    elements_per_node = total_lenght//total_users
-    start_end = [(i * elements_per_node, (i+1)* elements_per_node) for i in range(total_users)]
-
-    if rank != PARTY_ID.SERVER:
-        start = start_end[rank-1][0]
-        end = start_end[rank-1][1]
-        X_train_my, X_test_my = X_train[start:end, :], X_test[start:end, :]
-        y_train_my = y_train[start:end]
-
-    # split up the database between the users
-    if rank == PARTY_ID.SERVER:
-        pass
-        model.setData(fName=fName)
-    else:
-        original = DataBase.data_matrix_to_database(X_train_my, fName)
-        quantile = quantile.splitupHorizontal(start_end[rank-1][0], start_end[rank-1][1])
-        model.setData(quantile, fName, original, y_train_my)
-    
-    model.boost(initprobability)
-
-    
-    if rank == PARTY_ID.SERVER:
-        y_pred = model.predict(X_test)
-    else:
-        y_pred = [] # basically a none
-
-    y_pred_org = y_pred.copy()
-    X = X_train
-    y = y_train 
-    return X, y, y_pred_org
-
-def test_global(config:Config, logger:Logger, model: SFXGBoostClassifierBase, getDatabaseFunc):
-    X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDatabaseFunc()
-    log_distribution(logger, X_train, y_train, y_test)
-    xgboostmodel = None
-    if rank == PARTY_ID.SERVER:
-        import xgboost as xgb
-        xgboostmodel = xgb.XGBClassifier(max_depth=config.max_depth, objective="multi:softmax", tree_method="approx",
-                            learning_rate=0.3, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=0, reg_lambda=config.lam)
-        xgboostmodel.fit(X_train, np.argmax(y_train, axis=1))
-        from sklearn.metrics import accuracy_score
-        print(np.shape(X_test))
-
-        y_pred_xgb = xgboostmodel.predict(X_test)
-        print(f"Accuracy xgboost normal = {accuracy_score(np.argmax(y_test, axis=1), y_pred_xgb)}")
-    
-    X, y, y_pred_org = fit(X_train, y_train, X_test, fName, model)
-    # X, y = X_train, y_train
-    # y_pred_org = xgboostmodel.predict(X_test)
-    # model = xgboostmodel
-    # TODO make it such that model.fit gets used instead. its more clear and easy! 
-    
-    return X, y, X_test, y_test, y_pred_org, model, X_shadow, y_shadow, fName
-
 dataset_list = ['purchase-10', 'purchase-20', 'purchase-50', 'purchase-100', 'texas', 'healthcare', 'MNIST', 'synthetic', 'Census', 'DNA']
 POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
                       "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
                       "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
-
-def get_data_attack_federated2(target_model, shadow_model, attack_model, config:Config, logger:Logger):
-    X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDataBase(config.dataset, POSSIBLE_PATHS, False, config.train_size)()
-    log_distribution(logger, X_train, y_train, y_test)
-    
 
 def get_data_attack_centrally(target_model, shadow_model, attack_model, config:Config, logger:Logger, name="sample"):
     # TODO keep track of rank 
@@ -113,10 +47,14 @@ def get_data_attack_centrally(target_model, shadow_model, attack_model, config:C
     if rank == PARTY_ID.SERVER:
         print(f"DEBUG: target rank = {config.target_rank}, name = {name}")
         if config.target_rank > 0 and name == "FederBoost-Federated-2" :
-            pickle.dump(shadow_model, open("./delme.p", 'wb'))
+            # if not (os.path.exists('./delme.p')):
+            #     pickle.dump(shadow_model, open("./delme.p", 'wb'))
             print("went intside if")
             X_train, y_train = devide_D_Train(X_train, y_train, config.target_rank, config.data_devision)
+
             D_Train_Shadow = devide_D_Train(D_Train_Shadow[0], D_Train_Shadow[1], config.target_rank, config.data_devision)
+            D_Out_Shadow = devide_D_Train(D_Out_Shadow[0], D_Out_Shadow[1], config.target_rank, config.data_devision)
+
             X_test, y_test = devide_D_Train(X_test, y_test, config.target_rank, config.data_devision)
 
         z, labels = create_D_attack_centralised(shadow_model, D_Train_Shadow, D_Out_Shadow, config)
@@ -160,10 +98,6 @@ def concurrent_multi(c, config, logger, shadow_models, D_Train_Shadow, attack_mo
             D_Train_Attack, y = get_train_Attackmodel_1(config, shadow_models, c, l, D_Train_Shadow) # TODO this is too slow, multithread?
         attack_models[c][l] = retrieveorfit(attack_models[c][l], f"Attack_model {c},{l}", config, D_Train_Attack, np.array(y))
 
-def use_federated2(target_model, shadow_model, attack_model, config, logger) -> dict:
-    X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDataBase(config.dataset, POSSIBLE_PATHS, True, config.train_size)()
-
-
 def train_all_federated(target_model, shadow_models, attack_models1:List, attack_model2, config:Config, logger:Logger) -> dict:
     """Trains for a federated attack given the target_model, shadow_model(s), attack_model, config, logger
 
@@ -196,6 +130,7 @@ def train_all_federated(target_model, shadow_models, attack_models1:List, attack
         shadow_train_x = np.vstack((D_Train_Shadow[a][0], D_Train_Shadow[(a+1)%n_shadows][0]))
         shadow_train_y = np.vstack((D_Train_Shadow[a][1], D_Train_Shadow[(a+1)%n_shadows][1]))
         # shadow_models[a] = retrieveorfit(shadow_model, "shadow_model_" + str(a), config, shadow_train_x, shadow_train_y, fName)
+        print(f"shadow model {a} out of {len(shadow_models)}")
         retrieveorfit(shadow_model, "shadow_model_" + str(a), config, shadow_train_x, shadow_train_y, fName)
     # IMPORTANT, SHADOW_MODELS ARE NOW STORED ON DRIVE NOT IN MEMORY
 
@@ -211,7 +146,7 @@ def train_all_federated(target_model, shadow_models, attack_models1:List, attack
             X_train, y_train = devide_D_Train(X_train, y_train, config.target_rank, config.data_devision)  # change D_target to be the same as actually used by the targeted user
             X_test, y_test = devide_D_Train(X_test, y_test, config.target_rank, config.data_devision)  # change D_test to be same size as targeted user
         
-        with ThreadPoolExecutor(max_workers=11) as executor:
+        with ThreadPoolExecutor(max_workers=6) as executor:
             future_D_Train_Attack = [executor.submit(concurrent, config, logger, c, n_shadows, deepcopy(D_Train_Shadow), deepcopy(attack_models1)) for c in range(config.nClasses)  ]
 
             for future in futures.as_completed(future_D_Train_Attack):
@@ -348,7 +283,7 @@ def experiment1():
                             learning_rate=0.3,
                             max_depth=8,
                             max_tree=20,
-                            nBuckets=35,
+                            nBuckets=100,
                             save=False)).logger  # hacky way to get A logger
 
     seed = 10
@@ -365,14 +300,15 @@ def experiment1():
     # tested_param = "gamma"
     # tested_param_vals = [0.1, 0.5, 0.7, 0.9, 1]
     to_be_tested = {
-                    # "max_tree": [5, 10, 20, 30, 50, 100, 150],
-                    # "max_depth": [5, 8, 12, 15],
-                    # "train_size": [1000, 2000, 5000, 10_000],  # learning rate [0,1] default = 0.3
-                    # "gamma": [0, 0.1, 0.25, 0.5, 0.75, 1, 5, 10], # [0,inf] minimum loss for split to happen default = 0
-                    # "alpha": [0, 0.1, 0.25, 0.5, 0.75, 1, 10],  # [0, inf] L1 regularisation default = 0
-                    # "lam":   [0, 0.1, 0.25, 0.5, 0.75, 1, 10],  # L2 regularisation [0, inf] default = 1
-                    # "learning_rate":   [0.1, 0.25, 0.5 ,0.75, 1],
-                    "nBuckets": [10, 20, 50, 100, 1000]
+                    # "nBuckets": [10, 20, 50, 100, 500, 1000],
+                    "nBuckets": [1000, 500, 100, 50, 20, 10],
+                    "max_tree": [5, 10, 20, 30, 50, 100, 150],
+                    "max_depth": [5, 8, 12, 15],
+                    "train_size": [ 100, 250, 500, 1000, 2000, 5000, 10_000],  # learning rate [0,1] default = 0.3
+                    "gamma": [0, 0.1, 0.25, 0.5, 0.75, 1, 5, 10, 20], # [0,inf] minimum loss for split to happen default = 0
+                    "alpha": [0, 0.1, 0.25, 0.5, 0.75, 1, 10, 20],  # [0, inf] L1 regularisation default = 0
+                    "lam":   [0, 0.1, 0.25, 0.5, 0.75, 1, 10, 20],  # L2 regularisation [0, inf] default = 1
+                    "learning_rate":   [0.1, 0.25, 0.5 ,0.75, 1]
                     }
 
     # to_be_tested = {"gamma": [0, 0.1],
@@ -393,20 +329,20 @@ def experiment1():
                             nameTest= dataset + " test",
                             model="normal",
                             dataset=dataset,
-                            lam=0.1, # 0.1 10
-                            gamma=0.5,
+                            lam=0, # 0.1 10
+                            gamma=0, # 0.5
                             alpha=0.0,
                             learning_rate=0.3,
                             max_depth=8,
                             max_tree=20,
                             nBuckets=100,
                             save=False,
-                            data_devision=[0.25, 0.25, 0.25, 0.25],
+                            data_devision=[0.5, 0.5],
                             train_size=10_000)
-                    create_table_config_variable("experiment1_targetandshadow", modeltype="FederBoost",
+                    create_table_config_variable("experiment1_targetandshadow", modeltype="FederBoost", 
                                                  alpha=config.alpha, gamma=config.gamma, 
                                                  lam=config.lam, 
-                                                 learningrate = config.learning_rate,
+                                                 learningrate = config.learning_rate, 
                                                 maxdepth = config.max_depth, 
                                                 maxtree = config.max_tree, 
                                         )
@@ -416,7 +352,7 @@ def experiment1():
                     target_model = SFXGBoost(config, logger)
                     shadow_model = SFXGBoost(config, logger)
                     # attack_model = MLPClassifier(hidden_layer_sizes=(20,11,11), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
-                    xgboost_args = {"max_depth":12, "objective":"binary:logistic", "tree_method":"approx",
+                    xgboost_args = {"max_depth":12, "objective":"binary:logistic", "tree_method":"exact",
                                     "learning_rate":0.3, "n_estimators":20, "gamma":0.5, "reg_alpha":0.0, "reg_lambda":0.1}
                     attack_model = xgb.XGBClassifier(**xgboost_args)
                     create_table_config_variable("experiment1_attack", modeltype="XGBClassifier", **xgboost_args
@@ -449,22 +385,6 @@ def get_standard_config_experiement2(dataset):
             target_rank=1)
     return config 
 
-def experiment2dot1():
-    datasets = ["healthcare"]
-    target_Architectures = ["FederBoost-federated"]
-
-    all_data={}
-    for target_Architecture in target_Architectures:
-        all_data[target_Architecture] = {}
-        for dataset in datasets:
-            pass
-
-def experiment3():
-    datasets = ["healthcare"]
-    targetArchitectures = ["XGBoost", "FederBoost-Central", "FederBoost-Federated-2"]
-    all_data = {} # all_data["XGBoost"]["healthcore"]["accuarcy train shadow"]
-
-
 
 def experiment2_3(experiment_number:int=2):
     seed = 10
@@ -474,33 +394,59 @@ def experiment2_3(experiment_number:int=2):
 
     # datasets = ["healthcare", "synthetic-10", "synthetic-20", "synthetic-50", "synthetic-100"]
     # datasets = ["synthetic-10", "synthetic-100"]
-    datasets = ["healthcare"]#, "synthetic-10", "synthetic-100"]
+    # datasets = ["healthcare", "synthetic-10", "synthetic-100"]
+    # datasets = ["healthcare_hardcoded"]
+    datasets = ["healthcare", "synthetic-10", "synthetic-100"]
 
 
-    targetArchitectures = ["XGBoost", "FederBoost-Central", "FederBoost-Federated-2"] # , "FederBoost-Federated-1"]
-    # targetArchitectures = ["FederBoost-federated"]
+    targetArchitectures = None # , "FederBoost-Federated-1"]
+    if experiment_number == 2:
+        targetArchitectures = ["XGBoost", "FederBoost-Central", "FederBoost-Federated-1"] 
+    elif experiment_number ==3:
+        targetArchitectures = ["XGBoost", "FederBoost-Central", "FederBoost-Federated-2"]
+
+    # targetArchitectures = ["FederBoost-Central", "FederBoost-Federated-2"]
 
     all_data = {} # all_data["XGBoost"]["healthcore"]["accuarcy train shadow"]
     for targetArchitecture in targetArchitectures:
         all_data[targetArchitecture] = {}
         for dataset in datasets:
-            config = Config(experimentName = f"experiment {experiment_number}",
-            nameTest= dataset + " test",
-            model="normal",
-            dataset=dataset,
-            lam=0.1, # 0.1 10
-            gamma=0.5,
-            alpha=0.0,
-            learning_rate=0.3,
-            max_depth=8,
-            max_tree=20,
-            nBuckets=100,
-            save=True,
-            target_rank=1,
-            # data_devision=[0.0125, 0.4875, 0.5],
-            data_devision=[1000/10_000, 9_000/10_000],
-            train_size=10_000)
-            create_table_config_variable("experiment2_targetandshadow", modeltype="FederBoost",
+            config = None
+            if experiment_number == 2:
+                config = Config(experimentName = f"experiment{experiment_number}",
+                nameTest= "leavestest",
+                model="normal",
+                dataset=dataset,
+                lam= 0.1,   # 10, # 0.1 10
+                gamma= 0.5,  # 0.5,
+                alpha= 0,  # 1,
+                learning_rate=0.3,
+                max_depth=10,
+                max_tree=20,
+                nBuckets=100,
+                save=True,
+                target_rank=1,
+                # data_devision=[0.0125, 0.4875, 0.5],
+                data_devision= [50/2_000, 1950/2_000],  # [500/10_000, 9_500/10_000],
+                train_size=2_000)
+            else: # test 3
+                config = Config(experimentName = f"experiment {experiment_number}",
+                nameTest= "low overfitting 1",
+                model="normal",
+                dataset=dataset,
+                lam= 10, # 0.1 10
+                gamma= 1,
+                alpha= 1,
+                learning_rate=0.3,
+                max_depth=14,
+                max_tree=20,
+                nBuckets=100,
+                save=True,
+                target_rank=1,
+                # data_devision=[0.0125, 0.4875, 0.5],
+                data_devision= [200/2_000, 9800/10_000],  # [500/10_000, 9_500/10_000],
+                train_size=2_000)
+            create_table_config_variable(f"experiment{experiment_number}_targetandshadow", modeltype="FederBoost",
                                         alpha=config.alpha, gamma=config.gamma, 
                                         lam=config.lam, 
                                         learningrate = config.learning_rate,
@@ -510,16 +456,16 @@ def experiment2_3(experiment_number:int=2):
                                     nBuckets = config.nBuckets,
                                     train_size = config.train_size 
                             )
-            central_config_attack= {"max_depth":12, "objective":"binary:logistic", "tree_method":"approx", 
+            central_config_attack= {"max_depth":12, "objective":"binary:logistic", "tree_method":"exact", 
                              "learning_rate":0.3, "n_estimators":20, "gamma":0, "reg_alpha":0.0, "reg_lambda":1}
             
-            create_table_config_variable("exp2 central attack", modeltype="XGBClassifier", **central_config_attack)
+            create_table_config_variable(f"exp{experiment_number} central attack", modeltype="XGBClassifier", **central_config_attack)
             federated_config1 = {"max_depth":12, "objective":"binary:logistic", "tree_method":"exact",
                         "learning_rate":0.3, "n_estimators":40, "gamma":0, "reg_alpha":0, "reg_lambda":1}
-            create_table_config_variable("exp2 federated attack1", modeltype="XGBClassifier", **federated_config1)
+            create_table_config_variable(f"exp{experiment_number} federated attack1", modeltype="XGBClassifier", **federated_config1)
             federated_config2 = {"max_depth":12, "objective":"binary:logistic", "tree_method":"exact",
                     "learning_rate":0.3, "n_estimators":20, "gamma":0, "reg_alpha":0, "reg_lambda":1}
-            create_table_config_variable("exp2 federated attack2", modeltype="XGBClassifier", **federated_config2)
+            create_table_config_variable(f"exp{experiment_number} federated attack2", modeltype="XGBClassifier", **federated_config2)
             logger = MyLogger(config).logger
             if rank == PARTY_ID.SERVER: logger.warning(config.prettyprint())
 
@@ -534,6 +480,8 @@ def experiment2_3(experiment_number:int=2):
                 attack_model = xgb.XGBClassifier(**central_config_attack)
                 data = get_data_attack_centrally(target_model, shadow_model, attack_model, config, logger, targetArchitecture)
                 if rank == PARTY_ID.SERVER:
+                    print(data)
+                    print(f'Degree of overfitting: {data["overfitting target"]}')
                     all_data[targetArchitecture][dataset] = data
             elif targetArchitecture == "FederBoost-Federated-1":
                 target_model = SFXGBoost(config, logger)
@@ -552,14 +500,15 @@ def experiment2_3(experiment_number:int=2):
                     all_data[targetArchitecture][dataset] = data
             elif targetArchitecture == "XGBoost" and rank == PARTY_ID.SERVER:  # define neural network
                 config.target_rank = 0
-                target_model = xgb.XGBClassifier(max_depth=config.max_depth, objective="multi:softmax", tree_method="approx", num_class=config.nClasses,
-                        learning_rate=config.learning_rate, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=config.alpha, reg_lambda=config.lam)
-                shadow_model = xgb.XGBClassifier(max_depth=config.max_depth, objective="multi:softmax", tree_method="approx", num_class=config.nClasses,
-                        learning_rate=config.learning_rate, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=config.alpha, reg_lambda=config.lam)
+                target_model = xgb.XGBClassifier(max_depth=config.max_depth, objective="multi:softmax", tree_method="hist", num_class=config.nClasses,
+                        learning_rate=config.learning_rate, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=config.alpha, reg_lambda=config.lam, max_bin=config.nBuckets)
+                shadow_model = xgb.XGBClassifier(max_depth=config.max_depth, objective="multi:softmax", tree_method="hist", num_class=config.nClasses,
+                        learning_rate=config.learning_rate, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=config.alpha, reg_lambda=config.lam, max_bin=config.nBuckets)
                 # attack_model = MLPClassifier(hidden_layer_sizes=(20,11,11), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
                 attack_model = xgb.XGBClassifier(**central_config_attack)
                 # max_depth=12, objective="binary:logistic", tree_method="approx",learning_rate=0.3, n_estimators=20, gamma=0.5, reg_alpha=0.0, reg_lambda=0.1
                 data = get_data_attack_centrally(target_model, shadow_model, attack_model, config, logger, targetArchitecture)
+                print(f'Degree of overfitting: {data["overfitting target"]}')
                 all_data[targetArchitecture][dataset] = data
             else:
                 continue
@@ -567,8 +516,8 @@ def experiment2_3(experiment_number:int=2):
             
             # saver.save_experiment_2_one_run(attack_model, )
     if rank == PARTY_ID.SERVER:
-        save(all_data, name="all_data federated", config=config)
-    plot_experiment2(all_data)
+        save(all_data, name=f"all_data federated {experiment_number}", config=config)
+        plot_experiment(all_data, experiment_number)
         
         # saver.create_plots_experiment_2(all_data)
 
@@ -583,62 +532,6 @@ def main():
             experiment1()
         elif experimentNumber == 2 or experimentNumber == 3:
             experiment2_3(experimentNumber)
-    if False:
-        dataset = "healthcare"
-        config = Config(experimentName = "experiment 2",
-            nameTest= dataset + " test",
-            model="normal",
-            dataset=dataset,
-            lam=0.1, # 0.1 10
-            gamma=0,
-            alpha=0.0,
-            learning_rate=0.3,
-            max_depth=12,
-            max_tree=20,
-            nBuckets=35,
-            save=False,
-            target_rank=1)
-        
-        logger = MyLogger(config).logger
-        if rank ==0 : logger.debug(config.prettyprint())
-        if config.model == "normal":
-            target_model = SFXGBoost(config, logger)
-            shadow_model = SFXGBoost(config, logger)
-            # shadow_model = xgb.XGBClassifier(max_depth=config.max_depth, objective="multi:softmax", tree_method="approx",
-            #                 learning_rate=0.3, n_estimators=config.max_tree, gamma=config.gamma, reg_alpha=0, reg_lambda=config.lam)
-            # attack_model = xgb.XGBClassifier(tree_method="exact", objective='binary:logistic', max_depth=10, n_estimators=30, learning_rate=0.3)
-            # attack_model = DecisionTreeClassifier(max_depth=6,max_leaf_nodes=10)
-            attack_model = MLPClassifier(hidden_layer_sizes=(20,11,11), activation='relu', solver='adam', learning_rate_init=0.01, max_iter=2000)
-        
-        # if isSaved(config.nameTest, config):
-        #     shadow_model = retrieve("model", config)
-        # TODO target_model = train_model()
-        # TODO shadow_model = train_model()
-        # that way I can save the model reuse it and apply different attack_models on it.
-        # TODO SFXGBoost().getGradients.
-        
-        # X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDataBase(config.dataset, POSSIBLE_PATHS)()
-        
-        # log_distribution(logger, X_train, y_train, y_test)
-        # target_model.fit(X_train, y_train, fName)
-        # D_Train_Shadow, D_Out_Shadow, D_Test = split_shadow((X_shadow, y_shadow))
-        # shadow_model.fit(D_Train_Shadow[0], D_Train_Shadow[1], fName)
-
-        # z, labels = create_D_attack_centralised(shadow_model, D_Train_Shadow, D_Out_Shadow)
-
-        # attack_model.fit(z, labels)
-
-        # save_metrics_one_run(target_model, shadow_model, attack_model, (X_train, y_train), (X_test, y_test), D_Train_Shadow, (z, labels), D_Test)
-
-        X, y, X_test, y_test, y_pred_org, target_model, X_shadow, y_shadow, fName = test_global(config, logger, target_model, getDataBase(config.dataset, POSSIBLE_PATHS))
-        
-        preform_attack_centralised(config, logger, (X_shadow, y_shadow), target_model, shadow_model, attack_model, X, y, X_test, y_test, fName)
-
-        if rank == 0:
-            from sklearn.metrics import accuracy_score
-            print(f"y_test = {np.argmax(y_test, axis=1)}")
-            print(f"y_pred_org = {y_pred_org}")
-            print(f"Accuracy federboost = {accuracy_score(np.argmax(y_test, axis=1), y_pred_org)}")
 
 # import cProfile
 # cProfile.run('main()', sort='cumtime')

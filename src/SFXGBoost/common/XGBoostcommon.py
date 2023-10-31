@@ -5,7 +5,7 @@ from SFXGBoost.common.BasicTypes import Direction
 from SFXGBoost.config import rank
 
 
-def ThresholdL1(g, alpha):
+def ThresholdL1(g, alpha): # for the split function g is never < 0 
     if g > alpha:
         return g - alpha
     elif g < -alpha:

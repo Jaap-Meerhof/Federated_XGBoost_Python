@@ -1,25 +1,41 @@
+from SFXGBoost.view.plotter import plot_auc, plot_experiment
 import pickle
+
+shadow = pickle.load(open("delme.p", "rb"))
+from SFXGBoost.data_structure.treestructure import FLTreeNode
+c=0
+d=7
+p=1
+node = shadow.nodes[c][d][4]
+w, scorep = FLTreeNode.compute_leaf_param(node.Gpi[p][1], node.Hpi[p][1], 0.1, 0.5)
+all_data = pickle.load(open("/mnt/scratch_dir/meerhofj/Saves/experiment 3/high overfitting 1_rank_0/synthetic-100_all_data federated 3.p", "rb"))
+plot_experiment(all_data, 3)
+x = 1
+
+
 from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import accuracy_score, precision_score
-from SFXGBoost.view.plotter import plot_auc
 from SFXGBoost.config import Config
 import numpy as np
 
 import numpy as np
-import tensorflow as tf
-from tensorflow import keras
+# import tensorflow as tf
+# from tensorflow import keras
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 from SFXGBoost.common.pickler import save
 from SFXGBoost.view.table import create_latex_table_1
 # var = 9
-gpi = pickle.load(open("Gpi.p", "rb"))
+# gpi = pickle.load(open("Gpi.p", "rb"))
 
-arguments = pickle.load(open("./Saves/arguments.p", "rb"))
+
+# arguments = pickle.load(open("./Saves/arguments.p", "rb"))
 # create_latex_table_1(all_data=arguments[0], to_be_tested=arguments[1], metrics=arguments[2], name_model=arguments[3], datasets=arguments[4], destination="./Table/experiment_1.txt")
 # 10,5 works really well. 
 shadow = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_shadow_model_1.p', 'rb'))
 D_train = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_D_Train_Attack_0,3.p', 'rb'))
+all_data = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_all_data federated.p', 'rb'))
+
 
 # D_test = pickle.load(open('Saves/healthcare test_rank_0/healthcare_D_test_attack2.p', 'rb'))
 

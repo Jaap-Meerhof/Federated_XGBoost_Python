@@ -35,7 +35,7 @@ class Config:
         self.train_size = train_size
 
         # self.save_location= "./Saves/" + nameTest + "_rank_" + str(rank)
-        self.save_location= "/mnt/scratch_dir/meerhofj/Saves/" + nameTest + "_rank_" + str(rank)
+        self.save_location= "/mnt/scratch_dir/meerhofj/Saves/" + experimentName + "/" + nameTest + "_rank_" + str(rank)
 
     def prettyprint(self):
         print(f"experiment name = {self.experimentName}")

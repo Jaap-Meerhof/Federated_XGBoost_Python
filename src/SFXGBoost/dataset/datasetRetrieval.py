@@ -2,7 +2,9 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 import os
 import pandas as pd
-
+POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
+                      "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
+                      "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
 dataset = 'purchase-10' 
 dataset_list = ['purchase-10', 'purchase-20', 'purchase-50', 'purchase-100', 'texas', 'MNIST', 'synthetic', 'Census', 'DNA']
 
@@ -128,9 +130,7 @@ def getTexas(paths, federated=False, train_size=20_000):
     return returnfunc
 
 
-POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
-                      "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
-                      "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
+
 # X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getTexas(POSSIBLE_PATHS)()
 
 
@@ -224,7 +224,43 @@ def getWine(federated=False, train_size=2000):
     return returnfunc
 # getWine(False)()
 
+def getHealthcare_split(paths):
+    def returnfunc():
+        train = check_mul_paths_csv("AV_HealthcareAnalyticsII/train_data", paths)
+        non_continuous = ['Hospital_type_code', 'Hospital_region_code', 'Department', 'Ward_Type', 'Ward_Facility_Code', 'Type of Admission', 'Severity of Illness', 'Age', 'Stay']
+        train = train.dropna()
 
+        for featureName in non_continuous:
+            train[featureName] = train[featureName].factorize()[0]  # String to int
+
+        fName = train.columns.tolist()[1:17]
+        X = train.values[:, 1:17]
+        y = makeOneHot(y = train.values[:, 17].reshape(-1,1))
+        # Xtmp = np.ndarray.tolist(X)
+        data_mask_user1 = (X[:, 0] == 23)
+        data_mask_user2 = (X[:, 0] == 26)
+        data_user1 = X[data_mask_user1]  # 26566
+        data_user2 = X[data_mask_user2]  # 33076
+        y_user1 = y[data_mask_user1]
+        y_user2 = y[data_mask_user2]
+        datadevision_hardcode = [1000, 4000]
+        assert (datadevision_hardcode[0] * 4) < 26566 and (datadevision_hardcode[1] * 4) < 33076 
+        X_train = np.vstack( (data_user1[ :datadevision_hardcode[0], :], data_user2[ :datadevision_hardcode[1], :]) )
+        y_train = np.vstack( (y_user1[ :datadevision_hardcode[0]], y_user2[ :datadevision_hardcode[1]]) )
+        
+        X_test = np.vstack( (data_user1[datadevision_hardcode[0]: datadevision_hardcode[0]*2, :], data_user2[ datadevision_hardcode[1]:datadevision_hardcode[1]*2, :]) )
+        y_test = np.vstack( (y_user1[datadevision_hardcode[0]: datadevision_hardcode[0]*2 ], y_user2[datadevision_hardcode[1]:datadevision_hardcode[1]*2]) )
+
+        X_shadow = np.vstack( (data_user1[datadevision_hardcode[0]*2: datadevision_hardcode[0]*3, :], data_user2[ datadevision_hardcode[1]*2:datadevision_hardcode[1]*3, :],
+                               data_user1[datadevision_hardcode[0]*3: datadevision_hardcode[0]*4, :], data_user2[ datadevision_hardcode[1]*3:datadevision_hardcode[1]*4, :]) )
+
+        y_shadow = np.vstack( (y_user1[datadevision_hardcode[0]*2: datadevision_hardcode[0]*3 ], y_user2[datadevision_hardcode[1]*2:datadevision_hardcode[1]*3],
+                               y_user1[datadevision_hardcode[0]*3: datadevision_hardcode[0]*4 ], y_user2[datadevision_hardcode[1]*3:datadevision_hardcode[1]*4]) )
+
+        return X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow
+    return returnfunc
+X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getHealthcare_split(POSSIBLE_PATHS)()
+x = 1
 
 def getHealthcare(paths, federated=False, train_size=2_000): # https://www.kaggle.com/datasets/nehaprabhavalkar/av-healthcare-analytics-ii
     """retireves the Healtcare dataset from kaggle https://www.kaggle.com/datasets/nehaprabhavalkar/av-healthcare-analytics-ii
@@ -287,7 +323,8 @@ def getDataBase(dataBaseName, paths, federated=False, train_size=2000):
                     'texas':getTexas(paths, federated, train_size), 'healthcare':getHealthcare(paths, federated, train_size), 'MNIST':getMNIST(paths, federated, train_size), 
                     'synthetic-10':getSynthetic(federated, 10, train_size), 'synthetic-20':getSynthetic(federated, 20, train_size), 
                     'synthetic-50':getSynthetic(federated, 50, train_size), 'synthetic-100':getSynthetic(federated, 100, train_size), 
-                    'Census':getCensus(paths, federated, train_size), 'DNA':getDNA(paths, federated, train_size)
+                    'Census':getCensus(paths, federated, train_size), 'DNA':getDNA(paths, federated, train_size),
+                    'healthcare_hardcoded':getHealthcare_split(paths)
                    }[dataBaseName]
     return get_databasefunc
 
@@ -304,13 +341,14 @@ def getConfigParams(dataBaseName): # retreive n_classes, n_features
     get_databasefunc = {'purchase-10': (10, 600), # nClasses, nFeatures
                         'purchase-20': (20, 600), 
                         'purchase-50': (50, 600), 
-                        'purchase-100':(100, 600), 
+                        'purchase-100': (100, 600), 
                         'synthetic-10': (10, 16), # nClasses, nFeatures
                         'synthetic-20': (20, 16), 
                         'synthetic-50': (50, 16), 
-                        'synthetic-100':(100, 16), 
+                        'synthetic-100': (100, 16), 
                         'texas':(100, 11), 
                         'healthcare':(11, 16),
+                        'healthcare_hardcoded':(11, 16),
                         'MNIST':(10, 64), 
                         'Census':(-1, -1), 
                         'DNA':(-1, -1)
