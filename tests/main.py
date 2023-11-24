@@ -28,9 +28,7 @@ def log_distribution(logger, X_train, y_train, y_test):
     nTrain, rTrain, nTest, rTest, X_train.shape[1])
 
 dataset_list = ['purchase-10', 'purchase-20', 'purchase-50', 'purchase-100', 'texas', 'healthcare', 'MNIST', 'synthetic', 'Census', 'DNA']
-POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/", \
-                      "/home/hacker/jaap_cloud/SchoolCloud/Master Thesis/Database/", \
-                      "/home/jaap/Documents/JaapCloud/SchoolCloud/Master Thesis/Database/"]
+POSSIBLE_PATHS = ["/data/BioGrid/meerhofj/Database/"]
 
 def get_data_attack_centrally(target_model, shadow_model, attack_model, config:Config, logger:Logger, name="sample"):
     # TODO keep track of rank 
