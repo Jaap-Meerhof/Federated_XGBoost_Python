@@ -1,7 +1,22 @@
 import numpy as np
 
-def diff(actual, predicted):
-    return 
+def getLoss(y, y_pred):
+    """mLogloss defualt evaluation function for softmax in the XGBoost's source code. 
+
+    Args:
+        actual (np.array): one-hot encoded loss array
+        predicted (np.array): prediction probability array. 
+
+    Returns:
+        float: loss
+    """
+    loss = 0
+    epsilon = 1e-15
+    y_pred = np.clip(y_pred, epsilon, 1 -epsilon)
+
+    loss  = - np.sum(y * np.log(y_pred)) / len(y)
+
+    return loss
 
 def getGradientHessians(y, y_pred, case_weight=None):
     if case_weight is not None: case_weight = case_weight.T

@@ -29,13 +29,16 @@ def isSaved(name:str, config:Config):
     except FileNotFoundError:
         return False
 
-def retrieveorfit(model, name, config, X, y, fName=None):
+def retrieveorfit(model, name, config, X, y, fName=None, X_test=None, y_test=None):
     if isSaved(name, config):
         model = retrieve(name, config)
         return model
     else:
-        if fName != None:
-            model.fit(X, y, fName)
+        if fName is not None:
+            if (X_test is not None) and (y_test is not None):
+                model.fit(X, y, fName, X_test, y_test)
+            else:
+                model.fit(X, y, fName)
         else:
             model.fit(X, y)
         save(model, name=name, config=config)

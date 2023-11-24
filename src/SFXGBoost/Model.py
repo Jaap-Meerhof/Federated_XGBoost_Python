@@ -5,9 +5,11 @@ from SFXGBoost.data_structure.treestructure import FLTreeNode, SplittingInfo
 from copy import deepcopy
 from SFXGBoost.data_structure.databasestructure import QuantiledDataBase, DataBase
 from SFXGBoost.common.XGBoostcommon import PARTY_ID, L, Direction, weights_to_probas
-from SFXGBoost.loss.softmax import getGradientHessians
+from SFXGBoost.loss.softmax import getGradientHessians, getLoss
 from SFXGBoost.view.TreeRender import FLVisNode
 from typing import List
+
+from SFXGBoost.view.plotter import plot_loss  # last month loss logging
 
 class MSG_ID:
     TREE_UPDATE = 69
@@ -53,6 +55,8 @@ class SFXGBoostClassifierBase:
         self.logger = logger
         # self.fName = None
         self.copied_quantiles = None  # if not none then call setQuantiles with copied_quantiles
+        self.lossTrain = None  # to logg the loss on the train dataset
+        self.lossTest = None  # to logg the loss on the test dataset
 
     def setData(self, quantileDB:QuantiledDataBase=None, fName = None, original_data:DataBase=None, y=None):
         self.quantileDB = quantileDB
@@ -114,6 +118,10 @@ class SFXGBoost(SFXGBoostClassifierBase):
         if rank == PARTY_ID.SERVER:
             splits = comm.recv(source=1, tag=MSG_ID.INITIAL_QUANTILE_SPLITS)
             self.logger.warning("splits:")
+
+            losslog_test = []
+            losslog_train = []
+
             for i, split_k in enumerate(splits):
                 self.logger.warning(f"{self.fName[i]} = {split_k}")
             
@@ -170,7 +178,25 @@ class SFXGBoost(SFXGBoostClassifierBase):
                         comm.send(splittingInfos, Pi, tag=MSG_ID.SPLIT_UPDATE )
                     nodes = self.update_trees(nodes, splittingInfos, d)
                     # update own my own trees to attack users
-        
+                if (self.lossTrain is not None) and (self.lossTest is not None): # logging loss
+                    y_pred_train = self.predict_proba(self.lossTrain[0], t=t+1)
+                    # y_pred_train = np.eye(self.config.nClasses)[y_pred_train]  #makes it a one-hot encoded array
+
+                    y_true = self.lossTrain[1]
+                    train_loss = getLoss(y_true, y_pred_train)
+                    losslog_train.append(train_loss)
+                    del y_pred_train
+                    y_pred_test = self.predict_proba(self.lossTest[0], t=t+1)
+                    # y_pred_test = np.eye(self.config.nClasses)[y_pred_test]
+                    y_true = self.lossTest[1]
+                    test_loss = getLoss(y_true, y_pred_test)
+                    losslog_test.append(test_loss)
+            if (self.lossTrain is not None) and (self.lossTest is not None):
+                plot_loss(losslog_train, losslog_test, self.config)
+            else:
+                print(f"self.lossTrain != None: {self.lossTrain is not None}")
+                print(f"self.lossTest != None: {self.lossTest is not None}")
+
         ####################
         ### PARTICIPANTS ###
         ####################
@@ -198,7 +224,12 @@ class SFXGBoost(SFXGBoostClassifierBase):
 
             y = self.y
             G, H = None, None
+            # lossOverTrees = []
             for t in range(self.config.max_tree):
+                # loss = getLoss(y, y_pred)
+                # lossOverTrees.append(loss)
+
+
                 G, H = getGradientHessians(np.argmax(y, axis=1), y_pred) # nUsers, nClasses
                 
                 G, H = np.array(G).T, np.array(H).T  # (nClasses, nUsers)
@@ -226,7 +257,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                 #     FLVisNode(self.logger, self.trees[c][t].root).display(t)
                 update_pred = np.array([tree.predict(orgData) for tree in self.trees[:, t]]).T
                 y_pred += update_pred #* self.config.learning_rate
-    
+        return True
     def quantile_lookup(self):
         """The different participants will run this algorithm to find the quantile splits.
         This algorithm DOES NOT actually run the secure aggregation. We simply assume it is secure for the research
@@ -351,7 +382,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
                     for p in range(0, comm.Get_size() -1):
                         if rank == PARTY_ID.SERVER and self.config.target_rank > 0:
                             # print(f"DEBUG gpi shape{np.array(node.Gpi[p]).shape}")
-                            w, scorep = FLTreeNode.compute_leaf_param(node.Gpi[p][0], node.Hpi[p][0], self.config.lam, self.config.alpha)
+                            w, scorep = FLTreeNode.compute_leaf_param(node.Gpi[p][0], node.Hpi[p][0], self.config.lam, self.config.alpha) 
                             node.weightpi[p] = w * self.config.learning_rate
                     node.score = splitInfo.nodeScore
                     node.leftBranch = None
@@ -400,7 +431,7 @@ class SFXGBoost(SFXGBoostClassifierBase):
         # comm.send((Gkv, Hkv, Dx), PARTY_ID.SERVER, tag=MSG_ID.RESPONSE_GRADIENTS)
 
     
-    def fit(self, X_train, y_train, fName):
+    def fit(self, X_train, y_train, fName, X_test=None, y_test=None):
             quantile = QuantiledDataBase(DataBase.data_matrix_to_database(X_train, fName), self.config ) ## DEL CONFIG if errors occur 12-oct
                 
             initprobability = (sum(y_train))/len(y_train)
@@ -416,6 +447,19 @@ class SFXGBoost(SFXGBoostClassifierBase):
             if rank == PARTY_ID.SERVER:
                 pass
                 self.setData(fName=fName)
+                # Server will assess loss (unrealistic but for simulation)
+                # TODO retrieve training D, and testing D
+                # give these sets to the server.
+                # store training loss and testing loss over time
+                # plot over time
+                # show overfitting.
+                if (X_test is not None) and (y_test is not None):  # last month logging
+                    self.lossTrain = (X_train, y_train)
+                    self.lossTest = (X_test, y_test)
+                else:
+                    print(f"x_test != None {X_test is not None}")
+                    print(f"y_test != None {y_test is not None}")
+
             else:
                 original = DataBase.data_matrix_to_database(X_train_my, fName)
                 quantile = quantile.splitupHorizontal(start_end[rank-1][0], start_end[rank-1][1])
@@ -448,8 +492,18 @@ class SFXGBoost(SFXGBoostClassifierBase):
         y_pred = self.predict_proba(X, pi) # get leaf node weights
         return np.argmax(y_pred, axis=1)
     
-    def predict_proba(self, X, pi=-1): # returns probabilities of all classes
-        y_pred = self.predictweights(X, pi) # returns weights
+    def predict_proba(self, X, pi=-1, t=None): # returns probabilities of all classes
+        """returns prediction probabilities for the multi-class problems
+
+        Args:
+            X (np.array): _description_
+            pi (int): uses the gradients&hessinas of a participant pi to predict on a dataset. -1 if all aggregated differentials should be used
+            t (int, optional): number of trees to test. Defaults to None.
+
+        Returns:
+            np.array: two dimentional probability array.
+        """
+        y_pred = self.predictweights(X, pi, t=t) # returns weights
         for rowid in range(np.shape(y_pred)[0]):
             row = y_pred[rowid, :]
             wmax = max(row)
@@ -458,29 +512,40 @@ class SFXGBoost(SFXGBoostClassifierBase):
             y_pred[rowid, :] = np.exp(row-wmax) / wsum
         return y_pred
     
-    def predictweights(self, X, pi=-1): # returns weights
-            # if type(X) == np.ndarray:
-            #     X = DataBase.data_matrix_to_database(X, self.fName)
+    def predictweights(self, X, pi=-1, t=None): # returns weights
+        """returns weights for every class 
 
-            # y_pred = [None for n in range(self.nClasses)]
-            # y_pred = np.tile(self.init_Probas, (len(X) , 1)) #(Nclasses, xrows)
-            y_pred = np.zeros((len(X), self.config.nClasses))
+        Args:
+            X (np.array): _description_
+            pi (int): uses the gradients&hessinas of a participant pi to predict on a dataset. -1 if all aggregated differentials should be used
+            t (int, optional): number of trees to test. Defaults to None.
 
-            data_num = X.shape[0]
-            # Make predictions
-            testDataBase = DataBase.data_matrix_to_database(X, self.fName)
-            # print(f"DEBUG: {np.shape(X)}, {np.shape(y_pred)}, {np.shape(self.init_Probas)}, {np.shape(self.trees)}")
-            # print(f"init_probas = {self.init_Probas}")
-            for treeID in range(self.config.max_tree):
-                for c in range(self.config.nClasses):
-                    tree = self.trees[c][treeID]
-                    # Estimate gradient and update prediction
-                    # self.logger.warning(f"PREDICTION id {treeID}")
-                    # b = FLVisNode(self.logger, tree.root)
-                    # b.display(treeID)
-                    update_pred = tree.predict(testDataBase, pi)
-                    y_pred[:, c] += update_pred #* self.config.learning_rate
-            return y_pred
+        Returns:
+            np.array: two dimentional probability array.
+        """
+            
+        y_pred = np.zeros((len(X), self.config.nClasses))
+
+        data_num = X.shape[0]
+        # Make predictions
+        testDataBase = DataBase.data_matrix_to_database(X, self.fName)
+        # print(f"DEBUG: {np.shape(X)}, {np.shape(y_pred)}, {np.shape(self.init_Probas)}, {np.shape(self.trees)}")
+        # print(f"init_probas = {self.init_Probas}")
+        treesToTest = -1
+        if t is None:
+            treesToTest = self.config.max_tree
+        else:
+            treesToTest = t
+        for treeID in range(treesToTest):
+            for c in range(self.config.nClasses):
+                tree = self.trees[c][treeID]
+                # Estimate gradient and update prediction
+                # self.logger.warning(f"PREDICTION id {treeID}")
+                # b = FLVisNode(self.logger, tree.root)
+                # b.display(treeID)
+                update_pred = tree.predict(testDataBase, pi)
+                y_pred[:, c] += update_pred #* self.config.learning_rate
+        return y_pred
 
              
 

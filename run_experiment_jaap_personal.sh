@@ -12,6 +12,6 @@ case "$experiment" in
         rm $outputfile $errorfile & pip install . && bsub -J $name -q bio -n 26 -M 128G -R "rusage[mem=128G]" -o $outputfile -e $errorfile mpiexec -np 3 /home/meerhofj/.conda/envs/fedxgboost_mpi/bin/python tests/main.py $experiment
         ;;
     *)  
-        echo "only experiment 1 and 2 exist!"
+        echo "only experiment 1, 2, 3 exist!"
         ;;
 esac

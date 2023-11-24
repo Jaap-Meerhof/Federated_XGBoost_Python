@@ -1,6 +1,7 @@
 from SFXGBoost.view.plotter import plot_auc, plot_experiment
 import pickle
 
+arguments = pickle.load(open("./Saves/arguments_backup.p", "rb"))
 shadow = pickle.load(open("delme.p", "rb"))
 from SFXGBoost.data_structure.treestructure import FLTreeNode
 c=0
@@ -29,7 +30,6 @@ from SFXGBoost.view.table import create_latex_table_1
 # gpi = pickle.load(open("Gpi.p", "rb"))
 
 
-# arguments = pickle.load(open("./Saves/arguments.p", "rb"))
 # create_latex_table_1(all_data=arguments[0], to_be_tested=arguments[1], metrics=arguments[2], name_model=arguments[3], datasets=arguments[4], destination="./Table/experiment_1.txt")
 # 10,5 works really well. 
 shadow = pickle.load(open('/mnt/scratch_dir/meerhofj/Saves/healthcare test_rank_0/healthcare_shadow_model_1.p', 'rb'))

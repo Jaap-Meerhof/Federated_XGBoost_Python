@@ -38,7 +38,7 @@ def get_data_attack_centrally(target_model, shadow_model, attack_model, config:C
     log_distribution(logger, X_train, y_train, y_test)
     D_Train_Shadow, D_Out_Shadow = split_shadow((X_shadow, y_shadow)) 
     if type(target_model) == SFXGBoost:
-        target_model.fit(X_train, y_train, fName) # chrashes
+        target_model.fit(X_train, y_train, fName, X_test, y_test)
         shadow_model.fit(D_Train_Shadow[0], D_Train_Shadow[1], fName)
     else:
         target_model.fit(X_train, np.argmax(y_train, axis=1))
@@ -113,8 +113,8 @@ def train_all_federated(target_model, shadow_models, attack_models1:List, attack
     """
     X_train, y_train, X_test, y_test, fName, X_shadow, y_shadow = getDataBase(config.dataset, POSSIBLE_PATHS, True, config.train_size)()
     log_distribution(logger, X_train, y_train, y_test)
-
-    target_model = retrieveorfit(target_model, "target_model", config, X_train, y_train, fName)
+    print(f"X_test = {X_test != None}")
+    target_model = retrieveorfit(target_model, "target_model", config, X_train, y_train, fName, X_test, y_test)
     if rank != PARTY_ID.SERVER:
         quantiles = target_model.copyquantiles()
         for shadow_model in shadow_models:
@@ -431,20 +431,20 @@ def experiment2_3(experiment_number:int=2):
                 train_size=2_000)
             else: # test 3
                 config = Config(experimentName = f"experiment {experiment_number}",
-                nameTest= "low overfitting 1",
+                nameTest= "defualt settings overfitting 1",
                 model="normal",
                 dataset=dataset,
-                lam= 10, # 0.1 10
-                gamma= 1,
-                alpha= 1,
+                lam= 0, # 0.1 10
+                gamma= 0,
+                alpha= 0,
                 learning_rate=0.3,
-                max_depth=14,
+                max_depth=10,
                 max_tree=20,
                 nBuckets=100,
                 save=True,
                 target_rank=1,
                 # data_devision=[0.0125, 0.4875, 0.5],
-                data_devision= [200/2_000, 9800/10_000],  # [500/10_000, 9_500/10_000],
+                data_devision= [200/2_000, 1800/2000],  # [500/10_000, 9_500/10_000],
                 train_size=2_000)
             create_table_config_variable(f"experiment{experiment_number}_targetandshadow", modeltype="FederBoost",
                                         alpha=config.alpha, gamma=config.gamma, 
@@ -470,7 +470,7 @@ def experiment2_3(experiment_number:int=2):
             if rank == PARTY_ID.SERVER: logger.warning(config.prettyprint())
 
             np.random.RandomState(seed) # TODO set seed sklearn.split
-            
+            config.targetArchitecture = targetArchitecture
             if targetArchitecture == "FederBoost-Central" or targetArchitecture == "FederBoost-Federated-2":
                 if targetArchitecture == "FederBoost-Central":
                     config.target_rank = 0  # make sure when doing central, the target rank is 0 so total train size is tested against
