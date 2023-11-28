@@ -4,7 +4,7 @@ Which is a horizontally federated Gradient Boosted Decision Tree algorithm. With
 
 This is a multi-class classification implementation that uses softmax. Also different types of Membership Inference Attack can be tested, both using federated information or without.
 
-Paper will be available here in December 2023 or a bit later.
+Paper will be available here on 13 December 2023.
 
 TODO: 
 
@@ -34,7 +34,9 @@ or use "run.sh":
 ```
 ./run.sh myexperimentname (experiment number 1 to 3)
 ```
-
+---
+[Tian, Z., Zhang, R., Hou, X., Liu, J., & Ren, K. (2020). Federboost: Private federated learning for gbdt. arXiv preprint arXiv:2011.02796.](https://arxiv.org/abs/2011.02796)
+---
 
 
 Made in collaboration with the RIVM (Dutch National Institute for Public Health and the Environment) for my master thesis at the University of Twente. 
