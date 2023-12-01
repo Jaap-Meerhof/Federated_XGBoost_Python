@@ -1,6 +1,6 @@
 # Federated Membership Inference on Federboost
 This package implements 'Federboost' from Tian *et al* 
-Which is a horizontally federated Gradient Boosted Decision Tree algorithm. With the regularisation terms of **XGBoost**. This is not a 1 to 1 conversion from XGBoost to python, the models perform remarkebly close when regularisation parameters are used, but they differ more when it is not used. 
+Which is a horizontally federated Gradient Boosted Decision Tree algorithm. With the regularisation terms of **XGBoost**. This is not a 1 to 1 conversion from XGBoost to python, the models perform remarkably close when regularisation parameters are used, but they differ more when it is not used. 
 
 This is a multi-class classification implementation that uses softmax. Also different types of Membership Inference Attack can be tested, both using federated information or without.
 
@@ -9,7 +9,7 @@ Paper will be available here on 13 December 2023.
 TODO: 
 
 - Clear up for other researchers
-   * code cleanup & explination
+   * code cleanup & explanation
 - Change naming from old SFXGBoost to FXGBoost
 
 ---
