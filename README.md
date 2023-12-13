@@ -4,7 +4,7 @@ Which is a horizontally federated Gradient Boosted Decision Tree algorithm. With
 
 This is a multi-class classification implementation that uses softmax. Also different types of Membership Inference Attack can be tested, both using federated information or without.
 
-Paper will be available here on 13 December 2023.
+[Get the paper here](https://essay.utwente.nl/97818/)
 
 TODO: 
 
